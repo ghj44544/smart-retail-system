@@ -13,4 +13,14 @@ build/
 
 algorithm/retail_algorithm/.kagglehub_cache/
 algorithm/retail_algorithm/data/retailrocket/
-*.xlsx
+# 日志和临时文件
+*_log*.txt
+*_err*.txt
+test_*.csv
+
+# 大数据压缩包（超过100MB）
+*.zip
+
+# 前端自动生成文件
+components.d.ts
+auto-imports.d.ts
