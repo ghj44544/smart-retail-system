@@ -1,0 +1,202 @@
+// =====================================================
+// src/assets/styles/global.scss
+// 全局浅色系样式定义
+// 设计主题: 清新、现代、专业的浅色系 UI
+// =====================================================
+
+/* ==================== CSS 变量定义（蓝白专业主题） ==================== */
+:root {
+  /* ----- 主色调（蓝色系）----- */
+  --color-primary: #3b82f6;       // 主色：专业蓝
+  --color-primary-light: #93bbfd; // 主色浅
+  --color-primary-dark: #1d4ed8;  // 主色深
+  --color-primary-bg: #eff6ff;    // 主色背景（浅蓝底）
+
+  /* ----- 辅助色 ----- */
+  --color-accent: #10b981;        // 强调色：翠绿
+  --color-accent-light: #6ee7b7;
+  --color-warning: #f59e0b;       // 警告色：琥珀
+  --color-danger: #ef4444;        // 危险色：红色
+  --color-info: #3b82f6;          // 信息色
+
+  /* ----- 背景色 ----- */
+  --bg-body: #f5f7fa;             // 页面背景（浅灰蓝）
+  --bg-card: #ffffff;             // 卡片背景
+  --bg-sidebar: #ffffff;          // 侧边栏背景
+  --bg-header: #ffffff;           // 顶部栏背景
+  --bg-hover: #f0f4ff;            // 悬停背景（浅蓝灰）
+
+  /* ----- 文字色 ----- */
+  --text-primary: #111827;        // 主要文字
+  --text-regular: #4b5563;        // 常规文字
+  --text-secondary: #9ca3af;      // 次要文字
+  --text-placeholder: #c8d6e5;    // 占位符文字
+  --text-inverse: #ffffff;        // 反色文字
+
+  /* ----- 边框色 ----- */
+  --border-color: #e5e7eb;        // 边框
+  --border-light: #f3f4f6;        // 浅边框
+
+  /* ----- 阴影 ----- */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.06);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.08);
+
+  /* ----- 圆角 ----- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ----- 间距 ----- */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* ----- 字体 ----- */
+  --font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+
+  /* ----- 过渡 ----- */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.45s ease;
+}
+
+/* ==================== 全局重置 ==================== */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  background: var(--bg-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+#app {
+  height: 100%;
+}
+
+/* ==================== 滚动条美化 ==================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--text-secondary);
+  }
+}
+
+/* ==================== 链接样式 ==================== */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-primary-dark);
+  }
+}
+
+/* ==================== 通用工具类 ==================== */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-primary { color: var(--color-primary); }
+.text-accent { color: var(--color-accent); }
+.text-danger { color: var(--color-danger); }
+.text-muted { color: var(--text-secondary); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-xl { font-size: var(--font-size-xl); }
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+
+/* ==================== Element Plus 浅色主题定制 ==================== */
+/* 覆盖 Element Plus 默认样式，适配浅色系设计 */
+
+/* 按钮 */
+.el-button--primary {
+  --el-button-bg-color: var(--color-primary);
+  --el-button-border-color: var(--color-primary);
+  --el-button-hover-bg-color: var(--color-primary-dark);
+  --el-button-hover-border-color: var(--color-primary-dark);
+  --el-button-active-bg-color: var(--color-primary-dark);
+
+  border-radius: var(--radius-sm);
+}
+
+/* 输入框 */
+.el-input__wrapper {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--border-color);
+
+  &:hover {
+    box-shadow: 0 0 0 1px var(--color-primary-light);
+  }
+}
+
+.el-input.is-focus .el-input__wrapper {
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* 消息提示 */
+.el-message {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+/* 卡片 */
+.el-card {
+  border-radius: var(--radius-lg);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 表格 */
+.el-table {
+  --el-table-border-color: var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+/* 分页 */
+.el-pagination {
+  --el-pagination-button-bg-color: var(--bg-card);
+}
