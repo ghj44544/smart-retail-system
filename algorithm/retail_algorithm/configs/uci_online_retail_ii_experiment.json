@@ -1,0 +1,47 @@
+{
+  "behaviors_path": "",
+  "orders_path": "retail_algorithm/data/uci_online_retail_ii/orders.csv",
+  "output_dir": "retail_algorithm/outputs_uci_experiment",
+  "reference_date": null,
+  "top_n": 10,
+  "behavior_weights": {
+    "view": 1.0,
+    "favorite": 2.0,
+    "cart": 3.0,
+    "purchase": 5.0
+  },
+  "rfm": {
+    "quantiles": 5
+  },
+  "kmeans": {
+    "n_clusters": 5,
+    "random_state": 42
+  },
+  "apriori": {
+    "min_support": 0.004,
+    "min_confidence": 0.15,
+    "max_len": 2,
+    "max_rules": 8000
+  },
+  "multibehavior": {
+    "embedding_dim": 24,
+    "epochs": 6,
+    "learning_rate": 0.02,
+    "weight_decay": 0.0001,
+    "negative_samples": 3,
+    "batch_size": 1024,
+    "sequence_alpha": 0.2,
+    "time_decay_days": 60,
+    "seed": 42
+  },
+  "sampling": {
+    "max_order_lines": 20000,
+    "random_state": 42
+  },
+  "evaluation": {
+    "enabled": true,
+    "target_behavior": "purchase",
+    "filter_seen": false,
+    "k_values": [10, 50]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "behaviors": 42,
+  "orders": 12,
+  "customers": 10,
+  "products": 10,
+  "rfm_rows": 9,
+  "cluster_rows": 10,
+  "association_rules": 6,
+  "popular_recommendations": 76,
+  "association_recommendations": 2,
+  "multibehavior_recommendations": 76,
+  "multibehavior_metrics": {
+    "loss": 0.000309,
+    "num_users": 10,
+    "num_items": 10,
+    "num_interactions": 24,
+    "embedding_dim": 24,
+    "epochs": 40
+  },
+  "evaluation": {
+    "popular": {
+      "hit_rate@10": 0.333333,
+      "recall@10": 0.333333,
+      "precision@10": 0.040123,
+      "coverage@10": 1.0,
+      "evaluated_users": 9
+    },
+    "multibehavior": {
+      "hit_rate@10": 0.333333,
+      "recall@10": 0.333333,
+      "precision@10": 0.040123,
+      "coverage@10": 1.0,
+      "evaluated_users": 9
+    }
+  },
+  "output_dir": "C:\\Users\\a\\Documents\\Codex\\2026-05-28\\1-2-3-4\\retail_algorithm\\outputs"
+}

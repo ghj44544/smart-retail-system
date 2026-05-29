@@ -1,0 +1,16 @@
+{
+  "popular": {
+    "hit_rate@10": 0.024468,
+    "recall@10": 0.024468,
+    "precision@10": 0.002447,
+    "coverage@10": 0.008031,
+    "evaluated_users": 5354
+  },
+  "multibehavior": {
+    "hit_rate@10": 0.020359,
+    "recall@10": 0.020359,
+    "precision@10": 0.002036,
+    "coverage@10": 0.444929,
+    "evaluated_users": 5354
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "target_behavior": "purchase",
+  "filter_seen": false,
+  "popular": {
+    "k=10": {
+      "hit_rate@10": 0.018809,
+      "recall@10": 0.018809,
+      "precision@10": 0.001881,
+      "coverage@10": 0.000351,
+      "evaluated_users": 319
+    },
+    "k=50": {
+      "hit_rate@50": 0.040752,
+      "recall@50": 0.040752,
+      "precision@50": 0.000815,
+      "coverage@50": 0.001755,
+      "evaluated_users": 319
+    }
+  },
+  "multibehavior": {
+    "k=10": {
+      "hit_rate@10": 0.213166,
+      "recall@10": 0.213166,
+      "precision@10": 0.021317,
+      "coverage@10": 0.056736,
+      "evaluated_users": 319
+    },
+    "k=50": {
+      "hit_rate@50": 0.407524,
+      "recall@50": 0.407524,
+      "precision@50": 0.00815,
+      "coverage@50": 0.180037,
+      "evaluated_users": 319
+    }
+  }
+}

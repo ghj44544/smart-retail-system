@@ -1,0 +1,37 @@
+{
+  "behaviors_path": "retail_algorithm/data/sample/behaviors.csv",
+  "orders_path": "retail_algorithm/data/sample/orders.csv",
+  "output_dir": "retail_algorithm/outputs",
+  "reference_date": "2026-05-28",
+  "top_n": 10,
+  "behavior_weights": {
+    "view": 1.0,
+    "favorite": 2.0,
+    "cart": 3.0,
+    "purchase": 5.0
+  },
+  "rfm": {
+    "quantiles": 5
+  },
+  "kmeans": {
+    "n_clusters": 4,
+    "random_state": 42
+  },
+  "apriori": {
+    "min_support": 0.15,
+    "min_confidence": 0.2,
+    "max_len": 3,
+    "max_rules": 5000
+  },
+  "multibehavior": {
+    "embedding_dim": 24,
+    "epochs": 40,
+    "learning_rate": 0.03,
+    "weight_decay": 0.0001,
+    "negative_samples": 3,
+    "batch_size": 256,
+    "sequence_alpha": 0.35,
+    "time_decay_days": 30,
+    "seed": 42
+  }
+}

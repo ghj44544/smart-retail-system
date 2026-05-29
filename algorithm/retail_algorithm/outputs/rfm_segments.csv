@@ -1,0 +1,10 @@
+﻿customer_id,last_order_time,recency_days,frequency,monetary,r_score,f_score,m_score,rfm_score,segment_name
+C005,2026-05-06 19:20:00,21,1,228.7,3,2,5,10,ordinary
+C008,2026-05-10 20:30:00,17,1,69.8,4,2,4,10,key_development
+C009,2026-05-11 13:40:00,16,1,39.6,5,2,2,9,potential
+C002,2026-05-01 14:15:00,26,1,199.0,1,2,5,8,churn_risk
+C003,2026-05-03 08:40:00,24,1,99.8,2,2,4,8,churn_risk
+C006,2026-05-07 09:45:00,20,1,39.9,4,2,2,8,potential
+C010,2026-05-12 18:20:00,15,1,15.9,5,2,1,8,potential
+C001,2026-05-01 09:32:00,26,1,59.8,1,2,3,6,churn_risk
+C004,2026-05-05 12:50:00,22,1,31.8,2,2,1,5,churn_risk

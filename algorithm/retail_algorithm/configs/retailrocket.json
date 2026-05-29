@@ -1,0 +1,49 @@
+{
+  "behaviors_path": "C:/Users/a/Documents/Codex/2026-05-28/1-2-3-4/retail_algorithm/data/retailrocket/events.csv",
+  "orders_path": "",
+  "output_dir": "retail_algorithm/outputs_retailrocket",
+  "reference_date": null,
+  "top_n": 10,
+  "behavior_weights": {
+    "view": 1.0,
+    "favorite": 2.0,
+    "cart": 3.0,
+    "purchase": 5.0
+  },
+  "rfm": {
+    "quantiles": 5
+  },
+  "kmeans": {
+    "n_clusters": 5,
+    "random_state": 42
+  },
+  "apriori": {
+    "min_support": 0.001,
+    "min_confidence": 0.05,
+    "max_len": 2,
+    "max_rules": 5000
+  },
+  "multibehavior": {
+    "embedding_dim": 16,
+    "epochs": 4,
+    "learning_rate": 0.02,
+    "weight_decay": 0.0001,
+    "negative_samples": 3,
+    "batch_size": 1024,
+    "sequence_alpha": 0.35,
+    "time_decay_days": 30,
+    "seed": 42
+  },
+  "sampling": {
+    "min_events_per_user": 10,
+    "max_users": 1000,
+    "max_events": 80000,
+    "random_state": 42
+  },
+  "evaluation": {
+    "enabled": true,
+    "target_behavior": "purchase",
+    "filter_seen": false,
+    "k_values": [10, 50]
+  }
+}

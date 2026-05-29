@@ -1,0 +1,23 @@
+{
+  "behaviors": 4988,
+  "orders": 4988,
+  "customers": 217,
+  "products": 1940,
+  "rfm_rows": 217,
+  "cluster_rows": 217,
+  "association_rules": 5000,
+  "popular_recommendations": 2170,
+  "association_recommendations": 1846,
+  "multibehavior_recommendations": 2170,
+  "multibehavior_metrics": {
+    "loss": 0.336361,
+    "num_users": 217,
+    "num_items": 1940,
+    "num_interactions": 4713,
+    "embedding_dim": 16,
+    "epochs": 4,
+    "batch_size": 1024
+  },
+  "evaluation": {},
+  "output_dir": "C:\\Users\\a\\Documents\\Codex\\2026-05-28\\1-2-3-4\\retail_algorithm\\outputs_uci_online_retail_ii"
+}
