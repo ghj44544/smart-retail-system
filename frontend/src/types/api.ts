@@ -302,6 +302,8 @@ export interface RecommendItem {
   sales_count?: number
   rating?: number
   score?: number
+  confidence?: number
+  lift?: number
   reason?: string
 }
 

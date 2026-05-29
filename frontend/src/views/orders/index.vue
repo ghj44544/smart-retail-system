@@ -228,7 +228,7 @@ const loadTrend = async () => {
       grid: { left: '3%', right: '4%', bottom: '12%', top: '8%', containLabel: true },
       xAxis: { type: 'category', data: d.dates, axisLabel: { color: '#b2bec3', fontSize: 10, formatter: (v: string) => v.slice(5) } },
       yAxis: [
-        { type: 'value', name: '元', nameTextStyle: { color: '#b2bec3', fontSize: 11 }, axisLabel: { color: '#b2bec3', fontSize: 11, formatter: (v: number) => v >= 10000 ? (v / 10000).toFixed(1) + '万' : v }, splitLine: { lineStyle: { color: '#f0f3f7', type: 'dashed' } } },
+        { type: 'value', name: '元', nameTextStyle: { color: '#b2bec3', fontSize: 11 }, axisLabel: { color: '#b2bec3', fontSize: 11, formatter: (v: number) => v >= 10000 ? (v / 10000).toFixed(1) + '万' : String(v) }, splitLine: { lineStyle: { color: '#f0f3f7', type: 'dashed' } } },
         { type: 'value', name: '笔', nameTextStyle: { color: '#b2bec3', fontSize: 11 }, axisLabel: { color: '#b2bec3', fontSize: 11 }, splitLine: { show: false } },
       ],
       series: [

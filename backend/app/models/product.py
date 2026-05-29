@@ -23,6 +23,7 @@ from sqlalchemy import ForeignKey, Enum as SQLEnum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
+from app.models.category import Category  # noqa: F401 - ensure SQLAlchemy can resolve relationship("Category")
 
 
 class Product(Base):

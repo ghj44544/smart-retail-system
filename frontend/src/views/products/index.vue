@@ -214,7 +214,7 @@ const hotSortBy = ref('sales')
 
 const searchKeyword = ref('')
 const filterCategory = ref<number | ''>('')
-const filterStatus = ref('')
+const filterStatus = ref<'on' | 'off' | ''>('')
 
 const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 
@@ -233,7 +233,7 @@ const submitting = ref(false)
 const formRef = ref<FormInstance>()
 const editingId = ref<number | null>(null)
 const formData = reactive({
-  name: '', product_no: '', category_id: null as number | null, price: 0, stock: 0, status: 'on' as string,
+  name: '', product_no: '', category_id: null as number | null, price: 0, stock: 0, status: 'on' as 'on' | 'off',
 })
 
 const formRules: FormRules = {

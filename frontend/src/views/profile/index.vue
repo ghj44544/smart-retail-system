@@ -27,7 +27,7 @@
         <el-divider />
         <div class="card-stats">
           <div class="stat-item">
-            <span class="stat-value">{{ userDetail?.total_consumption || 0 | money }}</span>
+            <span class="stat-value">{{ formatMoney(userDetail?.total_consumption || 0) }}</span>
             <span class="stat-label">累计消费</span>
           </div>
           <div class="stat-item">
@@ -35,7 +35,7 @@
             <span class="stat-label">订单数</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ userDetail?.avg_order_value || 0 | money }}</span>
+            <span class="stat-value">{{ formatMoney(userDetail?.avg_order_value || 0) }}</span>
             <span class="stat-label">客单价</span>
           </div>
         </div>
@@ -121,6 +121,7 @@ import { getUserDetail, updateUser } from '@/api/user'
 import type { UserDetail } from '@/types/api'
 
 const authStore = useAuthStore()
+const formatMoney = (value: number): string => `¥${Number(value || 0).toFixed(2)}`
 
 // ==================== 状态 ====================
 const saving = ref(false)

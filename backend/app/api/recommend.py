@@ -24,6 +24,7 @@ from app.utils.response_utils import success_response
 from app.utils.jwt_utils import get_current_user
 from app.utils.redis_utils import cache_get, cache_set, cache_delete
 from app.services.analysis_service import calculate_association
+from app.services.algorithm_bridge import recommend_for_user
 
 
 router = APIRouter(prefix="/recommend", tags=["推荐系统"])
@@ -135,6 +136,10 @@ async def get_personalized_recommend(
     3. 如果不够，补充全局热门商品
     4. 附加推荐理由
     """
+    algorithm_result = recommend_for_user(db, user_id=user_id, limit=limit)
+    if algorithm_result:
+        return success_response(data=algorithm_result)
+
     # 1. 获取用户已购商品
     bought = set()
     orders = db.query(Order).filter(

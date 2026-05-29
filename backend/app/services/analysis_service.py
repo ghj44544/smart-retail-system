@@ -34,6 +34,14 @@ def calculate_rfm(db: Session) -> dict:
       2xx: 潜力用户
       1xx: 新用户/流失用户
     """
+    try:
+        from app.services import algorithm_bridge
+        result = algorithm_bridge.calculate_rfm(db)
+        if result is not None:
+            return result
+    except Exception:
+        db.rollback()
+
     now = datetime.utcnow()
     users = db.query(User).filter(User.deleted_at == None).all()
     if not users:
@@ -110,6 +118,14 @@ def calculate_rfm(db: Session) -> dict:
 
 def calculate_cluster(db: Session, n_clusters: int = 5) -> dict:
     """K-Means聚类分析，基于RFM分值进行用户分群"""
+    try:
+        from app.services import algorithm_bridge
+        result = algorithm_bridge.calculate_cluster(db, n_clusters=n_clusters)
+        if result is not None:
+            return result
+    except Exception:
+        db.rollback()
+
     from sklearn.cluster import KMeans
     
     rfm_records = db.query(RfmScore).all()
@@ -159,6 +175,14 @@ def calculate_association(db: Session, min_support: float = 0.01, min_confidence
     简化版Apriori：从订单中找出经常一起购买的商品对
     使用订单中的商品组合计算支持度和置信度
     """
+    try:
+        from app.services import algorithm_bridge
+        result = algorithm_bridge.calculate_association(db, min_support=min_support, min_confidence=min_confidence, limit=limit)
+        if result is not None:
+            return result
+    except Exception:
+        db.rollback()
+
     from itertools import combinations
     
     # 获取所有订单的商品列表

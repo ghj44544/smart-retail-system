@@ -446,9 +446,8 @@ const getBaseChartOption = (): EChartsOption => ({
     borderColor: '#e8ecf1',
     borderWidth: 1,
     textStyle: { color: '#2d3436', fontSize: 13 },
-    boxShadow: '0 4px 16px rgba(108,92,231,0.08)',
     padding: [12, 16],
-    extraCssText: 'border-radius: 10px;',
+    extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(108,92,231,0.08);',
   },
   grid: {
     left: '3%',
@@ -778,8 +777,6 @@ const renderSegmentChart = (): void => {
             fontWeight: 'bold',
           },
           scaleSize: 8,
-          shadowBlur: 20,
-          shadowColor: 'rgba(0,0,0,0.10)',
         },
         labelLine: {
           show: false,

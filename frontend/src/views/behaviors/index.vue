@@ -105,7 +105,7 @@ const tagType = (t: string) => ({ view: '', cart: 'primary', favorite: 'warning'
 const loading = ref(false)
 const list = ref<BehaviorItem[]>([])
 const pg = reactive({ page: 1, ps: 10, total: 0 })
-const filterType = ref(''); const filterUserId = ref<number | null>(null); const filterProductId = ref<number | null>(null)
+const filterType = ref<'view' | 'cart' | 'favorite' | 'buy' | ''>(''); const filterUserId = ref<number | null>(null); const filterProductId = ref<number | null>(null)
 const dateRange = ref<[string, string] | null>(null)
 const trendMode = ref('all')
 const funnelData = ref<FunnelData | null>(null)

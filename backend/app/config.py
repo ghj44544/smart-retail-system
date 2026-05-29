@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # FastAPI 服务监听地址，0.0.0.0 表示监听所有网络接口
     HOST: str = "0.0.0.0"
     # FastAPI 服务端口
-    PORT: int = 8000
+    PORT: int = 8001
     
     # ======================== MySQL 数据库配置 ========================
     # 数据库主机地址

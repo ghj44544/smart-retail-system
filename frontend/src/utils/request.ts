@@ -5,7 +5,7 @@
 // 认证方式: Header: Authorization: Bearer <token>
 // =====================================================
 
-import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
+import axios, { InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import type { ApiResponse } from '@/types/api'
 
@@ -16,8 +16,8 @@ import type { ApiResponse } from '@/types/api'
  * timeout: 请求超时时间 10秒
  * Content-Type: 默认 application/json
  */
-const request: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1',
+const request = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -74,7 +74,7 @@ request.interceptors.request.use(
  * 3. 网络错误时提示用户
  */
 request.interceptors.response.use(
-  (response) => {
+  (response): any => {
     // 获取后端返回的统一响应格式 { code, message, data }
     const res = response.data as ApiResponse
 
