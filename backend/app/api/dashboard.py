@@ -106,33 +106,87 @@ async def get_sales_trend(
     current_user: Dict = Depends(get_current_user)
 ) -> Dict:
     """获取销售趋势数据（折线图）"""
-    days = 30 if period == "day" else 90 if period == "week" else 365
-    start = datetime.utcnow() - timedelta(days=days)
+    if period not in ["day", "week", "month"]:
+        period = "day"
+
+    cache_key = f"dashboard_sales_trend_{period}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return success_response(data=json.loads(cached))
+
+    end = db.query(sqlfunc.max(Order.created_at)).filter(
+        Order.status.in_(["completed", "paid", "shipped"])
+    ).scalar() or datetime.utcnow()
+    days = 30 if period == "day" else 84 if period == "week" else 365
+    start = end - timedelta(days=days)
 
     orders = db.query(Order).filter(
-        Order.created_at >= start, Order.status.in_(["completed", "paid", "shipped"])
+        Order.created_at >= start,
+        Order.created_at <= end,
+        Order.status.in_(["completed", "paid", "shipped"])
     ).order_by(Order.created_at.asc()).all()
 
-    daily = defaultdict(lambda: {"sales": 0.0, "orders": 0, "users": set()})
-    for o in orders:
-        key = o.created_at.strftime("%Y-%m-%d")
-        daily[key]["sales"] += float(o.total_amount)
-        daily[key]["orders"] += 1
-        daily[key]["users"].add(o.user_id)
-
     dates, sales, order_counts, user_counts = [], [], [], []
-    # 显示最近30个数据点
-    show_days = min(days, 30)
-    for i in range(show_days, -1, -1):
-        d = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
-        dates.append(d)
-        sales.append(round(daily[d]["sales"], 2))
-        order_counts.append(daily[d]["orders"])
-        user_counts.append(len(daily[d]["users"]))
 
-    return success_response(data=SalesTrendData(
+    if period == "day":
+        buckets = defaultdict(lambda: {"sales": 0.0, "orders": 0, "users": set()})
+        for o in orders:
+            key = o.created_at.strftime("%Y-%m-%d")
+            buckets[key]["sales"] += float(o.total_amount)
+            buckets[key]["orders"] += 1
+            buckets[key]["users"].add(o.user_id)
+
+        for i in range(30, -1, -1):
+            key = (end - timedelta(days=i)).strftime("%Y-%m-%d")
+            dates.append(key)
+            sales.append(round(buckets[key]["sales"], 2))
+            order_counts.append(buckets[key]["orders"])
+            user_counts.append(len(buckets[key]["users"]))
+    elif period == "week":
+        week_starts = [(end - timedelta(days=end.weekday()) - timedelta(weeks=i)).date() for i in range(11, -1, -1)]
+        buckets = {d: {"sales": 0.0, "orders": 0, "users": set()} for d in week_starts}
+        for o in orders:
+            week_start = (o.created_at - timedelta(days=o.created_at.weekday())).date()
+            if week_start in buckets:
+                buckets[week_start]["sales"] += float(o.total_amount)
+                buckets[week_start]["orders"] += 1
+                buckets[week_start]["users"].add(o.user_id)
+
+        for week_start in week_starts:
+            dates.append(week_start.strftime("%m-%d"))
+            sales.append(round(buckets[week_start]["sales"], 2))
+            order_counts.append(buckets[week_start]["orders"])
+            user_counts.append(len(buckets[week_start]["users"]))
+    else:
+        month_keys = []
+        year, month = end.year, end.month
+        for _ in range(12):
+            month_keys.append((year, month))
+            month -= 1
+            if month == 0:
+                year -= 1
+                month = 12
+        month_keys.reverse()
+
+        buckets = {key: {"sales": 0.0, "orders": 0, "users": set()} for key in month_keys}
+        for o in orders:
+            key = (o.created_at.year, o.created_at.month)
+            if key in buckets:
+                buckets[key]["sales"] += float(o.total_amount)
+                buckets[key]["orders"] += 1
+                buckets[key]["users"].add(o.user_id)
+
+        for key in month_keys:
+            dates.append(f"{key[0]}-{key[1]:02d}")
+            sales.append(round(buckets[key]["sales"], 2))
+            order_counts.append(buckets[key]["orders"])
+            user_counts.append(len(buckets[key]["users"]))
+
+    data = SalesTrendData(
         dates=dates, sales=sales, orders=order_counts, users=user_counts
-    ).model_dump())
+    ).model_dump()
+    await cache_set(cache_key, json.dumps(data, ensure_ascii=False), 300)
+    return success_response(data=data)
 
 
 # ======================== 9.3 用户行为趋势 ========================
@@ -143,15 +197,36 @@ async def get_user_behavior(
     current_user: Dict = Depends(get_current_user)
 ) -> Dict:
     """获取用户行为趋势（PV/UV/新用户）"""
-    start = datetime.utcnow() - timedelta(days=30)
-    records = db.query(Behavior).filter(Behavior.created_at >= start).order_by(Behavior.created_at.asc()).all()
-    new_users = db.query(User).filter(User.created_at >= start, User.deleted_at == None).all()
+    cache_key = "dashboard_user_behavior"
+    cached = await cache_get(cache_key)
+    if cached:
+        return success_response(data=json.loads(cached))
 
-    daily = defaultdict(lambda: {"pv": 0, "users": set()})
+    latest_behavior_at = db.query(sqlfunc.max(Behavior.created_at)).scalar()
+    latest_user_at = db.query(sqlfunc.max(User.created_at)).filter(User.deleted_at == None).scalar()
+    end = latest_behavior_at or latest_user_at or datetime.utcnow()
+    start = end - timedelta(days=30)
+    records = db.query(Behavior).filter(
+        Behavior.created_at >= start,
+        Behavior.created_at <= end,
+    ).order_by(Behavior.created_at.asc()).all()
+    new_users = db.query(User).filter(
+        User.created_at >= start,
+        User.created_at <= end,
+        User.deleted_at == None,
+    ).all()
+
+    daily = defaultdict(lambda: {"pv": 0, "users": set(), "view": 0, "cart": 0, "buy": 0})
     for r in records:
         key = r.created_at.strftime("%Y-%m-%d")
         daily[key]["pv"] += 1
         daily[key]["users"].add(r.user_id)
+        if r.behavior_type == "view":
+            daily[key]["view"] += 1
+        elif r.behavior_type == "cart":
+            daily[key]["cart"] += 1
+        elif r.behavior_type == "buy":
+            daily[key]["buy"] += 1
 
     new_daily = defaultdict(int)
     for u in new_users:
@@ -159,17 +234,23 @@ async def get_user_behavior(
         if key:
             new_daily[key] += 1
 
-    dates, pv, uv, nv = [], [], [], []
+    dates, pv, uv, view_count, cart_count, buy_count, nv = [], [], [], [], [], [], []
     for i in range(30, -1, -1):
-        d = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        d = (end - timedelta(days=i)).strftime("%Y-%m-%d")
         dates.append(d)
         pv.append(daily[d]["pv"])
         uv.append(len(daily[d]["users"]))
+        view_count.append(daily[d]["view"])
+        cart_count.append(daily[d]["cart"])
+        buy_count.append(daily[d]["buy"])
         nv.append(new_daily[d])
 
-    return success_response(data=BehaviorTrendData(
-        dates=dates, pv=pv, uv=uv, new_users=nv
-    ).model_dump())
+    data = BehaviorTrendData(
+        dates=dates, pv=pv, uv=uv, view_count=view_count,
+        cart_count=cart_count, buy_count=buy_count, new_users=nv
+    ).model_dump()
+    await cache_set(cache_key, json.dumps(data, ensure_ascii=False), 300)
+    return success_response(data=data)
 
 
 # ======================== 9.4 商品排行 ========================
@@ -182,6 +263,11 @@ async def get_product_ranking(
     current_user: Dict = Depends(get_current_user)
 ) -> Dict:
     """获取商品销售排行"""
+    cache_key = f"dashboard_product_ranking_{limit}_{sort_by}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return success_response(data=json.loads(cached))
+
     products = db.query(Product).filter(
         Product.deleted_at == None, Product.status == "on"
     ).all()
@@ -202,7 +288,9 @@ async def get_product_ranking(
     else:
         ranking.sort(key=lambda x: x.sales, reverse=True)
 
-    return success_response(data=ProductRankingData(products=ranking[:limit]).model_dump())
+    data = ProductRankingData(products=ranking[:limit]).model_dump()
+    await cache_set(cache_key, json.dumps(data, ensure_ascii=False), 300)
+    return success_response(data=data)
 
 
 # ======================== 9.5 用户分群分布 ========================
@@ -217,6 +305,11 @@ async def get_user_segments(
     
     如果RFM数据不存在，自动触发RFM计算
     """
+    cache_key = "dashboard_user_segments"
+    cached = await cache_get(cache_key)
+    if cached:
+        return success_response(data=json.loads(cached))
+
     scores = db.query(RfmScore).all()
     if not scores:
         from app.services.analysis_service import calculate_rfm
@@ -228,7 +321,14 @@ async def get_user_segments(
         seg = s.segment or "流失用户"
         seg_count[seg] += 1
 
+    total_users = db.query(User).filter(User.deleted_at == None).count()
+    scored_users = sum(seg_count.values())
+    if total_users > scored_users:
+        seg_count["新用户"] += total_users - scored_users
+
     seg_labels = ["高价值用户", "忠诚用户", "潜力用户", "新用户", "流失用户"]
     segments = [UserSegmentItem(name=l, value=seg_count.get(l, 0)) for l in seg_labels]
 
-    return success_response(data=UserSegmentsData(segments=segments).model_dump())
+    data = UserSegmentsData(segments=segments).model_dump()
+    await cache_set(cache_key, json.dumps(data, ensure_ascii=False), 300)
+    return success_response(data=data)
