@@ -16,7 +16,7 @@
 # ReDoc 文档: http://localhost:8000/redoc
 # =============================================================================
 
-from fastapi import FastAPI, Depends                                     # FastAPI 框架
+from fastapi import FastAPI, Depends, status                            # FastAPI 框架
 from fastapi.middleware.cors import CORSMiddleware                    # CORS 跨域中间件
 from contextlib import asynccontextmanager                           # 异步上下文管理器
 from sqlalchemy.orm import Session                                   # SQLAlchemy 会话类型
@@ -159,8 +159,11 @@ app.include_router(dashboard_router, prefix="/api/v1")
 # ======================== 分类独立路由（4.6 GET /categories） ========================
 # 分类路由独立于 /products 前缀，直接挂载在 /api/v1/categories
 from app.models.category import Category as CatModel
-from app.schemas.product import CategoryResponse as CatResp
+from app.models.product import Product as ProductModel
+from app.schemas.product import CategoryResponse as CatResp, CreateCategoryRequest, UpdateCategoryRequest
+from app.utils.jwt_utils import get_current_user
 from app.utils.response_utils import success_response as s_ok
+from app.utils.response_utils import error_response as s_err
 
 @app.get("/api/v1/categories", summary="获取分类列表", tags=["商品管理"])
 async def get_categories(db: Session = Depends(get_db)):
@@ -171,6 +174,91 @@ async def get_categories(db: Session = Depends(get_db)):
         for c in cats
     ]
     return s_ok(data=data)
+
+
+@app.post("/api/v1/categories", summary="创建分类", tags=["商品管理"])
+async def create_category(
+    request: CreateCategoryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    name = request.name.strip()
+    if not name:
+        return s_err(code=status.HTTP_400_BAD_REQUEST, message="分类名称不能为空")
+
+    exists = db.query(CatModel).filter(CatModel.name == name).first()
+    if exists:
+        return s_err(code=status.HTTP_400_BAD_REQUEST, message="分类名称已存在")
+
+    if request.parent_id:
+        parent = db.query(CatModel).filter(CatModel.id == request.parent_id).first()
+        if not parent:
+            return s_err(code=status.HTTP_400_BAD_REQUEST, message="父分类不存在")
+
+    category = CatModel(name=name, parent_id=request.parent_id)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+
+    data = CatResp(id=category.id, name=str(category.name), parent_id=category.parent_id).model_dump()
+    return s_ok(data=data, message="分类创建成功")
+
+
+@app.put("/api/v1/categories/{category_id}", summary="更新分类", tags=["商品管理"])
+async def update_category(
+    category_id: int,
+    request: UpdateCategoryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    category = db.query(CatModel).filter(CatModel.id == category_id).first()
+    if not category:
+        return s_err(code=status.HTTP_404_NOT_FOUND, message="分类不存在")
+
+    if request.name is not None:
+        name = request.name.strip()
+        if not name:
+            return s_err(code=status.HTTP_400_BAD_REQUEST, message="分类名称不能为空")
+        exists = db.query(CatModel).filter(CatModel.name == name, CatModel.id != category_id).first()
+        if exists:
+            return s_err(code=status.HTTP_400_BAD_REQUEST, message="分类名称已存在")
+        category.name = name
+
+    if request.parent_id is not None:
+        if request.parent_id == category_id:
+            return s_err(code=status.HTTP_400_BAD_REQUEST, message="不能选择自身作为父分类")
+        parent = db.query(CatModel).filter(CatModel.id == request.parent_id).first()
+        if not parent:
+            return s_err(code=status.HTTP_400_BAD_REQUEST, message="父分类不存在")
+        category.parent_id = request.parent_id
+
+    db.commit()
+    db.refresh(category)
+
+    data = CatResp(id=category.id, name=str(category.name), parent_id=category.parent_id).model_dump()
+    return s_ok(data=data, message="分类更新成功")
+
+
+@app.delete("/api/v1/categories/{category_id}", summary="删除分类", tags=["商品管理"])
+async def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    category = db.query(CatModel).filter(CatModel.id == category_id).first()
+    if not category:
+        return s_err(code=status.HTTP_404_NOT_FOUND, message="分类不存在")
+
+    db.query(ProductModel).filter(ProductModel.category_id == category_id).update(
+        {ProductModel.category_id: None}
+    )
+    db.query(CatModel).filter(CatModel.parent_id == category_id).update(
+        {CatModel.parent_id: None}
+    )
+    db.delete(category)
+    db.commit()
+
+    return s_ok(data=None, message="分类已删除")
 
 
 # =============================================================================

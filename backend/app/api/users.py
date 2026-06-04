@@ -14,6 +14,7 @@
 # =============================================================================
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status  # FastAPI 路由、依赖、查询参数、异常
+from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session                                     # SQLAlchemy 数据库会话
 from datetime import datetime                                          # 日期时间处理
 from typing import Dict, Optional                                      # 类型注解
@@ -27,9 +28,15 @@ from app.schemas.user import (
     UserCreateResponse       # 创建用户响应模型
 )
 from app.models.user import User                                      # 用户 ORM 模型
+from app.models.order import Order
+from app.models.order_item import OrderItem  # noqa: F401 - ensure SQLAlchemy relationship is registered
+from app.models.product import Product  # noqa: F401 - ensure SQLAlchemy relationship is registered
+from app.models.rfm_score import RfmScore
+from app.models.cluster_result import ClusterResult
 from app.models.base import get_db                                    # 数据库会话依赖注入
 from app.utils.response_utils import success_response, error_response, paginated_response  # 统一响应格式
 from app.utils.jwt_utils import get_current_user                      # JWT 认证依赖注入
+from app.services.algorithm_outputs import get_algorithm_user_rfm, get_algorithm_user_cluster
 
 # 导入密码加密函数（从认证模块复用）
 from passlib.context import CryptContext
@@ -144,12 +151,32 @@ async def get_users(
         (page - 1) * page_size
     ).limit(page_size).all()
     
-    # 步骤6：构建响应数据列表
+    order_statuses = ["completed", "paid", "shipped"]
+    page_user_ids = [user.id for user in users]
+    page_order_stats = {}
+    if page_user_ids:
+        stats_rows = db.query(
+            Order.user_id,
+            sqlfunc.coalesce(sqlfunc.sum(Order.total_amount), 0).label("total_consumption"),
+            sqlfunc.count(Order.id).label("order_count")
+        ).filter(
+            Order.user_id.in_(page_user_ids),
+            Order.status.in_(order_statuses)
+        ).group_by(Order.user_id).all()
+        page_order_stats = {row.user_id: row for row in stats_rows}
+
+    filtered_users = query.with_entities(User.id).subquery()
+    global_order_stats = db.query(
+        sqlfunc.coalesce(sqlfunc.sum(Order.total_amount), 0).label("total_consumption"),
+        sqlfunc.count(Order.id).label("order_count")
+    ).join(filtered_users, Order.user_id == filtered_users.c.id).filter(
+        Order.status.in_(order_statuses)
+    ).first()
+    admin_count = query.filter(User.role == "admin").count()
+
     items = []
     for user in users:
-        # 构建用户列表项
-        # 注意：total_consumption 和 order_count 当前返回 0
-        # 待订单模块开发后，从订单表实时计算
+        stats = page_order_stats.get(user.id)
         item = UserListItem(
             id=user.id,
             username=str(user.username),
@@ -157,20 +184,21 @@ async def get_users(
             email=user.email,
             phone=user.phone,
             role=str(user.role),
-            total_consumption=0.0,       # 订单模块开发后填充
-            order_count=0,                # 订单模块开发后填充
+            total_consumption=float(stats.total_consumption) if stats else 0.0,
+            order_count=int(stats.order_count) if stats else 0,
             last_login=user.last_login,
             created_at=user.created_at
         )
         items.append(item.model_dump())
-    
-    # 步骤7：返回分页响应
-    return paginated_response(
-        items=items,          # 当前页数据
-        total=total,          # 总记录数
-        page=page,            # 当前页码
-        page_size=page_size   # 每页数量
-    )
+
+    response = paginated_response(items=items, total=total, page=page, page_size=page_size)
+    response["data"]["stats"] = {
+        "total": total,
+        "admins": admin_count,
+        "total_consumption": float(global_order_stats.total_consumption or 0) if global_order_stats else 0.0,
+        "order_count": int(global_order_stats.order_count or 0) if global_order_stats else 0,
+    }
+    return response
 
 
 # ======================== 接口 2：获取用户详情 ========================
@@ -238,6 +266,30 @@ async def get_user_detail(
     # 注意：消费统计相关字段（total_consumption, order_count 等）
     # 当前返回默认值，后续由订单模块提供真实数据
     # RFM 分值和聚类标签也返回 null，由分析模块填充
+    order_statuses = ["completed", "paid", "shipped"]
+    order_stats = db.query(
+        sqlfunc.coalesce(sqlfunc.sum(Order.total_amount), 0).label("total_consumption"),
+        sqlfunc.count(Order.id).label("order_count"),
+        sqlfunc.max(Order.created_at).label("last_purchase"),
+    ).filter(
+        Order.user_id == user_id,
+        Order.status.in_(order_statuses),
+    ).first()
+    total_consumption = float(order_stats.total_consumption or 0) if order_stats else 0.0
+    order_count = int(order_stats.order_count or 0) if order_stats else 0
+    rfm_record = db.query(RfmScore).filter(RfmScore.user_id == user_id).first()
+    cluster_record = db.query(ClusterResult).filter(ClusterResult.user_id == user_id).first()
+    rfm_score = get_algorithm_user_rfm(user_id)
+    if not rfm_score and rfm_record:
+        rfm_score = {
+            "recency": rfm_record.recency or 1,
+            "frequency": rfm_record.frequency or 1,
+            "monetary": rfm_record.monetary or 1,
+        }
+    cluster_label = get_algorithm_user_cluster(user_id)
+    if cluster_label is None and cluster_record:
+        cluster_label = cluster_record.cluster_label
+
     user_detail = UserDetailResponse(
         id=user.id,
         username=str(user.username),
@@ -246,13 +298,13 @@ async def get_user_detail(
         phone=user.phone,
         role=str(user.role),
         # ===== 消费统计（订单模块开发后填充真实数据） =====
-        total_consumption=0.0,
-        order_count=0,
-        avg_order_value=0.0,
-        last_purchase=None,
+        total_consumption=total_consumption,
+        order_count=order_count,
+        avg_order_value=round(total_consumption / order_count, 2) if order_count else 0.0,
+        last_purchase=order_stats.last_purchase if order_stats else None,
         # ===== 分析结果（分析模块开发后填充真实数据） =====
-        rfm_score=None,
-        cluster_label=None,
+        rfm_score=rfm_score,
+        cluster_label=cluster_label,
         # ===== 时间字段 =====
         last_login=user.last_login,
         created_at=user.created_at,

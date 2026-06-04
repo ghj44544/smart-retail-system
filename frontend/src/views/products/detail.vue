@@ -8,7 +8,7 @@
 <template>
   <div class="product-detail-page">
     <div class="page-header">
-      <el-button :icon="ArrowLeft" @click="$router.push('/products')">返回列表</el-button>
+      <el-button :icon="ArrowLeft" @click="$router.back()">返回</el-button>
       <h2 class="page-title">{{ detail?.name || '商品详情' }}</h2>
     </div>
 

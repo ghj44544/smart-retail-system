@@ -9,8 +9,8 @@
 # =============================================================================
 
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException, status
+from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sqlfunc, distinct
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import pandas as pd
@@ -154,31 +154,31 @@ async def get_behavior_funnel(
     漏斗顺序: 浏览(view) → 加购(cart) → 购买(buy)
     每个步骤统计去重用户数，rate 以第一步为基准(1.0)
     """
-    base_query = db.query(Behavior)
-    if start_date:
-        base_query = base_query.filter(Behavior.created_at >= start_date)
-    if end_date:
-        base_query = base_query.filter(Behavior.created_at <= end_date + " 23:59:59")
-    
-    # 统计每种行为的去重用户数（使用 func.count + func.distinct 确保正确去重）
-    view_users = db.query(sqlfunc.count(sqlfunc.distinct(Behavior.user_id))).filter(
-        Behavior.behavior_type == "view", *([Behavior.created_at >= start_date] if start_date else []),
-        *([Behavior.created_at <= end_date + " 23:59:59"] if end_date else [])
-    ).scalar() or 0
-    cart_users = db.query(sqlfunc.count(sqlfunc.distinct(Behavior.user_id))).filter(
-        Behavior.behavior_type == "cart", *([Behavior.created_at >= start_date] if start_date else []),
-        *([Behavior.created_at <= end_date + " 23:59:59"] if end_date else [])
-    ).scalar() or 0
-    buy_users = db.query(sqlfunc.count(sqlfunc.distinct(Behavior.user_id))).filter(
-        Behavior.behavior_type == "buy", *([Behavior.created_at >= start_date] if start_date else []),
-        *([Behavior.created_at <= end_date + " 23:59:59"] if end_date else [])
-    ).scalar() or 0
-    
-    base = max(view_users, 1)  # 避免除零
+    def distinct_users(behavior_type: str) -> set[int]:
+        query = db.query(Behavior.user_id).filter(Behavior.behavior_type == behavior_type)
+        if start_date:
+            query = query.filter(Behavior.created_at >= start_date)
+        if end_date:
+            query = query.filter(Behavior.created_at <= end_date + " 23:59:59")
+        return {int(user_id) for (user_id,) in query.distinct().all() if user_id is not None}
+
+    view_set = distinct_users("view")
+    cart_set = distinct_users("cart")
+    buy_set = distinct_users("buy")
+
+    # Funnel counts must be step-by-step subsets; otherwise imported data can exceed 100%.
+    cart_in_funnel = cart_set & view_set if view_set else set()
+    buy_in_funnel = buy_set & cart_in_funnel if cart_in_funnel else set()
+
+    view_users = len(view_set)
+    cart_users = len(cart_in_funnel)
+    buy_users = len(buy_in_funnel)
+
+    base = max(view_users, 1)
     steps = [
-        FunnelStep(name="浏览", count=view_users, rate=round(view_users / base, 2)),
-        FunnelStep(name="加购", count=cart_users, rate=round(cart_users / base, 2)),
-        FunnelStep(name="购买", count=buy_users, rate=round(buy_users / base, 2)),
+        FunnelStep(name="浏览", count=view_users, rate=1.0 if view_users else 0.0),
+        FunnelStep(name="加购", count=cart_users, rate=round(cart_users / base, 4)),
+        FunnelStep(name="购买", count=buy_users, rate=round(buy_users / base, 4)),
     ]
     return success_response(data=FunnelData(steps=steps).model_dump())
 
@@ -196,8 +196,13 @@ async def get_behavior_trend(
     
     返回每日: PV(总行为数), UV(去重用户数), view_count, cart_count, buy_count
     """
-    start_date = datetime.utcnow() - timedelta(days=days)
-    records = db.query(Behavior).filter(Behavior.created_at >= start_date).order_by(Behavior.created_at.asc()).all()
+    latest_behavior_at = db.query(sqlfunc.max(Behavior.created_at)).scalar()
+    end_at = latest_behavior_at or datetime.utcnow()
+    start_at = end_at - timedelta(days=days)
+    records = db.query(Behavior).filter(
+        Behavior.created_at >= start_at,
+        Behavior.created_at <= end_at,
+    ).order_by(Behavior.created_at.asc()).all()
     
     # 按天聚合
     from collections import defaultdict
@@ -212,7 +217,7 @@ async def get_behavior_trend(
     
     dates, pv, uv, vc, cc, bc = [], [], [], [], [], []
     for i in range(days, -1, -1):
-        d = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        d = (end_at - timedelta(days=i)).strftime("%Y-%m-%d")
         dates.append(d)
         pv.append(daily[d]["pv"])
         uv.append(len(daily[d]["users"]))

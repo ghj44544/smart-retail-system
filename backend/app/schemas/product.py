@@ -41,6 +41,18 @@ class UpdateProductRequest(BaseModel):
     product_no: Optional[str] = Field(None, max_length=50, description="商品编号")
 
 
+class CreateCategoryRequest(BaseModel):
+    """创建商品分类请求（POST /categories）"""
+    name: str = Field(..., min_length=1, max_length=100, description="分类名称")
+    parent_id: Optional[int] = Field(None, description="父分类ID")
+
+
+class UpdateCategoryRequest(BaseModel):
+    """更新商品分类请求（PUT /categories/{id}）"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="分类名称")
+    parent_id: Optional[int] = Field(None, description="父分类ID")
+
+
 # ======================== 响应模型 ========================
 
 class ProductListItem(BaseModel):

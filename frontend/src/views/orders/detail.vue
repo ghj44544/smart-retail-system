@@ -8,7 +8,7 @@
 <template>
   <div class="order-detail-page">
     <div class="page-header">
-      <el-button :icon="ArrowLeft" @click="$router.push('/orders')">返回列表</el-button>
+      <el-button :icon="ArrowLeft" @click="goBack">返回列表</el-button>
       <h2 class="page-title">{{ detail?.order_no || '订单详情' }}</h2>
       <el-tag v-if="detail" :type="tagType" effect="light" size="large">
         {{ statusLabels[detail.status] }}
@@ -90,12 +90,13 @@
 // 订单详情页逻辑
 // =====================================================
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getOrderDetail } from '@/api/order'
 import type { OrderDetail } from '@/types/api'
 
 const route = useRoute()
+const router = useRouter()
 const orderId = computed(() => Number(route.params.id))
 
 const statusLabels: Record<string, string> = { pending: '待支付', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
@@ -119,6 +120,11 @@ const formatDate = (s?: string) => s ? new Date(s).toLocaleString('zh-CN') : '--
 const loadData = async () => {
   loading.value = true
   try { const res = await getOrderDetail(orderId.value); detail.value = res.data } catch {/* */} finally { loading.value = false }
+}
+
+const goBack = () => {
+  if (window.history.length > 1) router.back()
+  else router.push('/orders')
 }
 
 watch(orderId, () => loadData())

@@ -14,6 +14,7 @@
 # =============================================================================
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Dict, Optional, List
@@ -66,6 +67,13 @@ async def get_products(
         query = query.filter(Product.status == status)
     
     total = query.count()
+    base_stats_query = db.query(Product).filter(Product.deleted_at == None)
+    status_stats = {
+        "total": base_stats_query.count(),
+        "on": base_stats_query.filter(Product.status == "on").count(),
+        "off": base_stats_query.filter(Product.status == "off").count(),
+        "avg_price": float(base_stats_query.with_entities(func.avg(Product.price)).scalar() or 0),
+    }
     products = query.order_by(Product.id.desc()).offset(
         (page - 1) * page_size
     ).limit(page_size).all()
@@ -86,7 +94,9 @@ async def get_products(
             created_at=p.created_at
         ).model_dump())
     
-    return paginated_response(items=items, total=total, page=page, page_size=page_size)
+    response = paginated_response(items=items, total=total, page=page, page_size=page_size)
+    response["data"]["stats"] = status_stats
+    return response
 
 
 # ======================== 4.7 热门商品排行 ========================

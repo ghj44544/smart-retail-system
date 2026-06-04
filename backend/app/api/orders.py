@@ -57,11 +57,15 @@ async def get_order_trend(
     对应API: 5.5 GET /orders/trend
     返回: {dates: [...], sales: [...], orders: [...]}
     """
-    start_date = datetime.utcnow() - timedelta(days=days)
+    end = db.query(sqlfunc.max(Order.created_at)).filter(
+        Order.status.in_(["completed", "paid", "shipped"])
+    ).scalar() or datetime.utcnow()
+    start_date = end - timedelta(days=days)
     
     # 查询日期范围内的已完成订单
     orders = db.query(Order).filter(
         Order.created_at >= start_date,
+        Order.created_at <= end,
         Order.status.in_(["completed", "paid", "shipped"])
     ).order_by(Order.created_at.asc()).all()
     
@@ -76,7 +80,7 @@ async def get_order_trend(
     # 生成日期序列
     dates, sales_list, orders_list = [], [], []
     for i in range(days, -1, -1):
-        d = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        d = (end - timedelta(days=i)).strftime("%Y-%m-%d")
         dates.append(d)
         sales_list.append(round(daily[d]["sales"], 2))
         orders_list.append(daily[d]["count"])
@@ -112,24 +116,53 @@ async def get_orders(
         query = query.filter(Order.created_at <= end_date + " 23:59:59")
     
     total = query.count()
-    orders = query.order_by(Order.id.desc()).offset(
+    stats_subquery = query.with_entities(Order.id).subquery()
+    stats_query = db.query(Order).join(stats_subquery, Order.id == stats_subquery.c.id)
+    stats = {
+        "total": total,
+        "sales_amount": float(stats_query.filter(
+            Order.status.in_(["completed", "paid", "shipped"])
+        ).with_entities(sqlfunc.coalesce(sqlfunc.sum(Order.total_amount), 0)).scalar() or 0),
+        "completed": stats_query.filter(Order.status == "completed").count(),
+        "pending": stats_query.filter(Order.status == "pending").count(),
+        "cancelled": stats_query.filter(Order.status == "cancelled").count(),
+    }
+    orders = query.with_entities(
+        Order.id, Order.order_no, Order.user_id, Order.total_amount, Order.status, Order.created_at
+    ).order_by(Order.id.desc()).offset(
         (page - 1) * page_size
     ).limit(page_size).all()
-    
+
+    order_ids = [o.id for o in orders]
+    user_ids = [o.user_id for o in orders if o.user_id]
+    user_map = {}
+    if user_ids:
+        user_map = {
+            u.id: (u.nickname or u.username or "")
+            for u in db.query(User.id, User.nickname, User.username).filter(User.id.in_(user_ids)).all()
+        }
+    item_count_map = {}
+    if order_ids:
+        item_count_map = dict(
+            db.query(OrderItem.order_id, sqlfunc.coalesce(sqlfunc.sum(OrderItem.quantity), 0))
+            .filter(OrderItem.order_id.in_(order_ids))
+            .group_by(OrderItem.order_id)
+            .all()
+        )
+
     items = []
     for o in orders:
-        user_name = ""
-        if o.user_id:
-            u = db.query(User).filter(User.id == o.user_id).first()
-            user_name = u.nickname if u else ""
-        item_count = len(o.items) if o.items else 0
+        user_name = user_map.get(o.user_id, "")
+        item_count = int(item_count_map.get(o.id, 0))
         items.append(OrderListItem(
             id=o.id, order_no=str(o.order_no), user_id=o.user_id,
             user_name=user_name, total_amount=float(o.total_amount),
             status=str(o.status), item_count=item_count, created_at=o.created_at
         ).model_dump())
     
-    return paginated_response(items=items, total=total, page=page, page_size=page_size)
+    response = paginated_response(items=items, total=total, page=page, page_size=page_size)
+    response["data"]["stats"] = stats
+    return response
 
 
 # ======================== 5.2 获取订单详情 ========================

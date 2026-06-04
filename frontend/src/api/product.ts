@@ -230,6 +230,43 @@ export const getCategories = (): Promise<ApiResponse<CategoryItem[]>> => {
   return request.get('/categories')
 }
 
+export const createCategory = (
+  data: Pick<CategoryItem, 'name'> & { parent_id?: number | null }
+): Promise<ApiResponse<CategoryItem>> => {
+  if (USE_MOCK) {
+    const item: CategoryItem = {
+      id: Math.max(0, ...mockCategories.map((c) => c.id)) + 1,
+      name: data.name,
+      parent_id: data.parent_id ?? null,
+    }
+    mockCategories.push(item)
+    return mockDelay({ code: 200, message: '创建成功', data: item })
+  }
+  return request.post('/categories', data)
+}
+
+export const updateCategory = (
+  categoryId: number,
+  data: Partial<Pick<CategoryItem, 'name' | 'parent_id'>>
+): Promise<ApiResponse<CategoryItem>> => {
+  if (USE_MOCK) {
+    const item = mockCategories.find((c) => c.id === categoryId)
+    if (!item) return Promise.reject(new Error('分类不存在'))
+    Object.assign(item, data)
+    return mockDelay({ code: 200, message: '更新成功', data: item })
+  }
+  return request.put(`/categories/${categoryId}`, data)
+}
+
+export const deleteCategory = (categoryId: number): Promise<ApiResponse<null>> => {
+  if (USE_MOCK) {
+    const index = mockCategories.findIndex((c) => c.id === categoryId)
+    if (index >= 0) mockCategories.splice(index, 1)
+    return mockDelay({ code: 200, message: '删除成功', data: null })
+  }
+  return request.delete(`/categories/${categoryId}`)
+}
+
 /**
  * 4.7 获取热门商品排行
  * 接口: GET /products/hot

@@ -25,6 +25,7 @@ from app.models.base import get_db
 from app.utils.response_utils import success_response, error_response
 from app.utils.jwt_utils import get_current_user
 from app.services.analysis_service import calculate_rfm, calculate_cluster, calculate_association, get_user_profile
+from app.services.algorithm_outputs import get_algorithm_rfm_result, get_algorithm_cluster_result
 
 
 router = APIRouter(prefix="/analysis", tags=["数据分析"])
@@ -42,6 +43,13 @@ async def get_rfm(
     
     如果数据库中没有RFM数据，自动触发计算并存储
     """
+    algorithm_result = get_algorithm_rfm_result(db)
+    if algorithm_result:
+        return success_response(data=RFMResult(
+            distribution=RFMDistribution(**algorithm_result["distribution"]),
+            scores=[RFMScoreItem(**s) for s in algorithm_result["scores"]]
+        ).model_dump())
+
     scores = db.query(RfmScore).all()
     if not scores:
         # 没有数据，自动计算
@@ -77,6 +85,15 @@ async def get_cluster(
     current_user: Dict = Depends(get_current_user)
 ) -> Dict:
     """获取K-Means聚类结果（散点图/雷达图数据）"""
+    algorithm_result = get_algorithm_cluster_result(db)
+    if algorithm_result:
+        resp = ClusterResultResponse(clusters=[
+            ClusterItem(label=c["label"], name=c["name"], count=c["count"],
+                        center=c["center"], points=[ClusterPoint(**p) for p in c["points"]])
+            for c in algorithm_result["clusters"]
+        ])
+        return success_response(data=resp.model_dump())
+
     records = db.query(ClusterResult).all()
     if not records:
         # 确保RFM存在

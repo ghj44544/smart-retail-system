@@ -30,6 +30,9 @@ class BehaviorTrendData(BaseModel):
     dates: List[str] = []
     pv: List[int] = []
     uv: List[int] = []
+    view_count: List[int] = []
+    cart_count: List[int] = []
+    buy_count: List[int] = []
     new_users: List[int] = []
 
 

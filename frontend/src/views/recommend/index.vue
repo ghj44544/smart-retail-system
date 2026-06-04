@@ -37,7 +37,7 @@
                 </div>
               </div>
               <div class="rc-action">
-                <el-button type="primary" size="small" :icon="ShoppingCart" round>推荐</el-button>
+                <el-button type="primary" size="small" :icon="View" round @click="handleViewProduct(item.product_id)">查看</el-button>
               </div>
             </div>
           </div>
@@ -49,8 +49,13 @@
         <div class="tab-content" v-loading="assoLoading">
           <div class="asso-select">
             <span class="asso-select-label">选择商品查看关联推荐：</span>
-            <el-select v-model="assoProductId" placeholder="请选择商品" filterable style="width:280px" @change="loadAssociation">
-              <el-option v-for="p in productOptions" :key="p.id" :label="p.name" :value="p.id" />
+            <el-select v-model="assoProductId" placeholder="请选择商品" filterable style="width:360px" @change="loadAssociation">
+              <el-option
+                v-for="p in productOptions"
+                :key="p.id"
+                :label="`${p.name} (${p.product_no})`"
+                :value="p.id"
+              />
             </el-select>
           </div>
           <el-empty v-if="assoProductId && !assoList.length" description="该商品暂无关联推荐" />
@@ -76,7 +81,14 @@
         <div class="tab-content" v-loading="persLoading">
           <div class="asso-select">
             <span class="asso-select-label">选择用户查看个性化推荐：</span>
-            <el-input-number v-model="persUserId" :min="1" :max="100" placeholder="用户ID" controls-position="right" style="width:160px" />
+            <el-select v-model="persUserId" placeholder="请选择用户" filterable style="width:260px">
+              <el-option
+                v-for="u in userOptions"
+                :key="u.id"
+                :label="`${u.username}${u.nickname ? ' - ' + u.nickname : ''} (#${u.id})`"
+                :value="u.id"
+              />
+            </el-select>
             <el-button type="primary" @click="loadPersonalized">查询推荐</el-button>
           </div>
           <el-empty v-if="persUserId && !persList.length" description="暂无个性化推荐数据" />
@@ -86,12 +98,12 @@
                 <div class="rc-name">{{ item.name }}</div>
                 <div class="rc-meta">
                   <span class="rc-price">¥{{ item.price!.toFixed(2) }}</span>
-                  <el-tag size="small" effect="plain" type="primary">匹配 {{ ((item.score || 0) * 100).toFixed(0) }}%</el-tag>
+                  <el-tag size="small" effect="plain" type="primary">匹配 {{ scorePercent(item.score) }}%</el-tag>
                 </div>
                 <div class="pers-reason">{{ item.reason }}</div>
               </div>
               <div class="rc-score-bar">
-                <el-progress :percentage="(item.score || 0) * 100" :stroke-width="6" :color="progressColor(item.score!)" />
+                <el-progress :percentage="scorePercent(item.score)" :stroke-width="6" :color="progressColor(item.score || 0)" />
               </div>
             </div>
           </div>
@@ -103,13 +115,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Refresh, ShoppingCart } from '@element-plus/icons-vue'
+import { Refresh, View } from '@element-plus/icons-vue'
 import { getHotRecommend, getAssociationRecommend, getPersonalizedRecommend, refreshRecommend } from '@/api/recommend'
-import type { RecommendItem } from '@/types/api'
+import { getProductList } from '@/api/product'
+import { getUserList } from '@/api/user'
+import type { ProductItem, RecommendItem, UserItem } from '@/types/api'
 
 // ==================== 状态 ====================
 const activeTab = ref('hot')
+const router = useRouter()
 const refreshing = ref(false)
 const hotLoading = ref(false); const assoLoading = ref(false); const persLoading = ref(false)
 
@@ -117,27 +133,46 @@ const hotList = ref<RecommendItem[]>([])
 const assoProductId = ref<number | null>(null); const assoList = ref<RecommendItem[]>([])
 const persUserId = ref<number | null>(null); const persList = ref<RecommendItem[]>([])
 
-// 商品下拉选项（关联推荐用）
-const productOptions = [
-  { id: 1, name: '无线蓝牙耳机 Pro' }, { id: 2, name: '智能手表 S3' }, { id: 3, name: 'Type-C 数据线 1m' },
-  { id: 4, name: '便携充电宝 20000mAh' }, { id: 5, name: '降噪耳机罩' }, { id: 6, name: '机械键盘 RGB' },
-  { id: 7, name: '无线鼠标' }, { id: 8, name: 'USB 集线器 7口' }, { id: 9, name: '平板电脑支架' },
-  { id: 10, name: '高清摄像头 1080P' }, { id: 13, name: '运动跑鞋' }, { id: 16, name: '智能台灯' },
-]
+const productOptions = ref<ProductItem[]>([])
+const userOptions = ref<UserItem[]>([])
 
+const scorePercent = (score?: number) => Math.round(Math.max(0, Math.min(score || 0, 1)) * 100)
 const progressColor = (score: number) => score >= 0.85 ? '#00b894' : score >= 0.7 ? '#6c5ce7' : '#fdcb6e'
 
 // ==================== 数据加载 ====================
 const loadHot = async () => { hotLoading.value = true; try { const r = await getHotRecommend(10); hotList.value = r.data } catch {/* */} finally { hotLoading.value = false } }
 const loadAssociation = async () => { if (!assoProductId.value) return; assoLoading.value = true; try { const r = await getAssociationRecommend(assoProductId.value); assoList.value = r.data } catch {/* */} finally { assoLoading.value = false } }
 const loadPersonalized = async () => { if (!persUserId.value) return; persLoading.value = true; try { const r = await getPersonalizedRecommend(persUserId.value); persList.value = r.data } catch {/* */} finally { persLoading.value = false } }
+const handleViewProduct = (productId: number) => router.push(`/products/${productId}`)
+
+const loadProductOptions = async () => {
+  try {
+    const r = await getProductList({ page: 1, page_size: 100, status: 'on' })
+    productOptions.value = (r.data.items || []).filter((p) => !String(p.product_no || '').startsWith('DEMO-'))
+    if (!assoProductId.value && productOptions.value.length) assoProductId.value = productOptions.value[0].id
+  } catch {
+    productOptions.value = []
+  }
+}
+
+const loadUserOptions = async () => {
+  try {
+    const r = await getUserList({ page: 1, page_size: 100, role: 'user' })
+    userOptions.value = r.data.items || []
+    if (!persUserId.value && userOptions.value.length) persUserId.value = userOptions.value[0].id
+  } catch {
+    userOptions.value = []
+  }
+}
 
 const handleRefresh = async () => {
   refreshing.value = true
   try { await refreshRecommend(); ElMessage.success('推荐结果已刷新'); loadHot(); if (assoProductId.value) loadAssociation(); if (persUserId.value) loadPersonalized() } catch {/* */} finally { refreshing.value = false }
 }
 
-onMounted(() => loadHot())
+onMounted(async () => {
+  await Promise.all([loadHot(), loadProductOptions(), loadUserOptions()])
+})
 </script>
 
 <style lang="scss" scoped>

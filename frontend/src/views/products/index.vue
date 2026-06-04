@@ -14,7 +14,10 @@
         <h2 class="page-title">商品管理</h2>
         <p class="page-subtitle">管理平台商品信息，查看热门排行与库存状态</p>
       </div>
-      <el-button type="primary" :icon="Plus" @click="handleAdd">新增商品</el-button>
+      <div class="header-actions">
+        <el-button @click="categoryDialogVisible = true">分类管理</el-button>
+        <el-button type="primary" :icon="Plus" @click="handleAdd">新增商品</el-button>
+      </div>
     </div>
 
     <!-- ========== 统计卡片 ========== -->
@@ -138,7 +141,7 @@
               <div class="hot-info">
                 <div class="hot-name">{{ item.name }}</div>
                 <div class="hot-meta">
-                  <span class="hot-sales">销量 {{ item.sales_count }}</span>
+                  <span class="hot-sales">{{ hotSortBy === 'rating' ? '评分 ' + item.rating.toFixed(1) : '销量 ' + item.sales_count }}</span>
                   <span class="hot-price">¥{{ item.price }}</span>
                 </div>
               </div>
@@ -185,6 +188,40 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="categoryDialogVisible" title="分类管理"
+      width="520px" :close-on-click-modal="false"
+    >
+      <div class="category-editor">
+        <el-input
+          v-model="categoryForm.name"
+          placeholder="请输入分类名称"
+          maxlength="100"
+          clearable
+          @keyup.enter="handleSaveCategory"
+        />
+        <el-button type="primary" :loading="categorySubmitting" @click="handleSaveCategory">
+          {{ editingCategoryId ? '保存' : '新增' }}
+        </el-button>
+        <el-button v-if="editingCategoryId" @click="handleCancelCategoryEdit">取消</el-button>
+      </div>
+
+      <el-table :data="categories" border stripe row-key="id" class="category-table">
+        <el-table-column prop="id" label="ID" width="80" align="center" />
+        <el-table-column prop="name" label="分类名称" min-width="180" />
+        <el-table-column label="操作" width="140" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="handleEditCategory(row)">编辑</el-button>
+            <el-popconfirm title="删除后该分类下商品会变为未分类，确定删除？" @confirm="handleDeleteCategory(row.id)">
+              <template #reference>
+                <el-button link type="danger" size="small">删除</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -199,6 +236,7 @@ import { Plus, Search, RefreshRight, Goods, ShoppingCart, Remove, Coin } from '@
 import {
   getProductList, getCategories, getHotProducts,
   createProduct, updateProduct, deleteProduct,
+  createCategory, updateCategory, deleteCategory,
 } from '@/api/product'
 import type { ProductItem, CategoryItem, ProductQueryParams } from '@/types/api'
 
@@ -217,13 +255,14 @@ const filterCategory = ref<number | ''>('')
 const filterStatus = ref<'on' | 'off' | ''>('')
 
 const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
+const productStats = reactive({ total: 0, on: 0, off: 0, avg_price: 0 })
 
 // 统计卡片
 const statCards = computed(() => [
-  { label: '商品总数', value: pagination.total + ' 件', icon: Goods, color: '#6c5ce7', bg: 'rgba(108,92,231,0.08)' },
-  { label: '在售商品', value: productList.value.filter((p) => p.status === 'on').length + ' 件', icon: ShoppingCart, color: '#00b894', bg: 'rgba(0,184,148,0.08)' },
-  { label: '已下架', value: productList.value.filter((p) => p.status === 'off').length + ' 件', icon: Remove, color: '#e17055', bg: 'rgba(225,112,85,0.08)' },
-  { label: '均价', value: '¥' + (productList.value.length ? (productList.value.reduce((s, p) => s + p.price, 0) / productList.value.length).toFixed(2) : '0'), icon: Coin, color: '#fdcb6e', bg: 'rgba(253,203,110,0.08)' },
+  { label: '商品总数', value: productStats.total + ' 件', icon: Goods, color: '#6c5ce7', bg: 'rgba(108,92,231,0.08)' },
+  { label: '在售商品', value: productStats.on + ' 件', icon: ShoppingCart, color: '#00b894', bg: 'rgba(0,184,148,0.08)' },
+  { label: '已下架', value: productStats.off + ' 件', icon: Remove, color: '#e17055', bg: 'rgba(225,112,85,0.08)' },
+  { label: '均价', value: '¥' + productStats.avg_price.toFixed(2), icon: Coin, color: '#fdcb6e', bg: 'rgba(253,203,110,0.08)' },
 ])
 
 // 对话框
@@ -235,6 +274,11 @@ const editingId = ref<number | null>(null)
 const formData = reactive({
   name: '', product_no: '', category_id: null as number | null, price: 0, stock: 0, status: 'on' as 'on' | 'off',
 })
+
+const categoryDialogVisible = ref(false)
+const categorySubmitting = ref(false)
+const editingCategoryId = ref<number | null>(null)
+const categoryForm = reactive({ name: '' })
 
 const formRules: FormRules = {
   name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
@@ -258,6 +302,10 @@ const loadList = async () => {
     const res = await getProductList(buildQuery())
     productList.value = res.data.items
     pagination.total = res.data.total
+    productStats.total = res.data.stats?.total ?? res.data.total
+    productStats.on = res.data.stats?.on ?? 0
+    productStats.off = res.data.stats?.off ?? 0
+    productStats.avg_price = res.data.stats?.avg_price ?? 0
   } catch { ElMessage.error('商品数据加载失败') } finally { loading.value = false }
 }
 
@@ -313,10 +361,54 @@ const handleDelete = async (id: number) => {
   try { await deleteProduct(id); ElMessage.success('已删除'); loadList(); loadHotProducts() } catch { /* */ }
 }
 
+const handleSaveCategory = async () => {
+  const name = categoryForm.name.trim()
+  if (!name) {
+    ElMessage.warning('请输入分类名称')
+    return
+  }
+  categorySubmitting.value = true
+  try {
+    if (editingCategoryId.value) {
+      await updateCategory(editingCategoryId.value, { name })
+      ElMessage.success('分类更新成功')
+    } else {
+      await createCategory({ name, parent_id: null })
+      ElMessage.success('分类创建成功')
+    }
+    handleCancelCategoryEdit()
+    await loadCategories()
+    await loadList()
+  } catch { /* handled by request interceptor */ } finally { categorySubmitting.value = false }
+}
+
+const handleEditCategory = (row: CategoryItem) => {
+  editingCategoryId.value = row.id
+  categoryForm.name = row.name
+}
+
+const handleCancelCategoryEdit = () => {
+  editingCategoryId.value = null
+  categoryForm.name = ''
+}
+
+const handleDeleteCategory = async (id: number) => {
+  try {
+    await deleteCategory(id)
+    ElMessage.success('分类已删除')
+    if (filterCategory.value === id) filterCategory.value = ''
+    if (formData.category_id === id) formData.category_id = null
+    if (editingCategoryId.value === id) handleCancelCategoryEdit()
+    await loadCategories()
+    await loadList()
+  } catch { /* handled by request interceptor */ }
+}
+
 const handleToggleStatus = async (row: ProductItem, val: boolean) => {
   try {
     await updateProduct(row.id, { status: val ? 'on' : 'off' } as any)
     row.status = val ? 'on' : 'off'
+    await Promise.all([loadList(), loadHotProducts()])
     ElMessage.success(val ? '已上架' : '已下架')
   } catch { /* */ }
 }
@@ -333,6 +425,7 @@ onMounted(() => {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .page-title { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #6c5ce7, #a29bfe); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .page-subtitle { font-size: 13px; color: #b2bec3; margin-top: 4px; }
 
@@ -372,6 +465,9 @@ onMounted(() => {
 .stock-low { color: #e17055; font-weight: 600; }
 .stock-normal { color: #00b894; font-weight: 600; }
 .pagination-wrap { display: flex; justify-content: flex-end; padding: 16px 20px; }
+
+.category-editor { display: flex; gap: 10px; margin-bottom: 14px; }
+.category-table { margin-top: 4px; }
 
 /* 热门排行 */
 .hot-card { border: 1px solid var(--border-light); border-radius: 14px; position: sticky; top: 20px;
