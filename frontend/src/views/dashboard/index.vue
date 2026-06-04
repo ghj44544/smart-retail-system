@@ -178,32 +178,30 @@
           </div>
         </template>
         <div class="funnel-wrapper">
-          <div
-            v-for="(step, index) in funnelSteps"
-            :key="step.name"
-            class="funnel-item"
-            :style="{
-              width: step.rate * 100 + '%',
-              background: funnelColors[index],
-              transitionDelay: index * 0.1 + 's',
-            }"
-          >
-            <div class="funnel-bar">
-              <span class="funnel-name">{{ step.name }}</span>
-              <span class="funnel-count">{{ step.count.toLocaleString() }} 次</span>
-            </div>
-            <span class="funnel-rate">{{ (step.rate * 100).toFixed(1) }}%</span>
-          </div>
-          <!-- 转化率箭头 -->
-          <div class="funnel-arrows">
-            <template v-for="(step, index) in funnelSteps" :key="'arrow-' + index">
-              <div v-if="index < funnelSteps.length - 1" class="funnel-arrow">
-                <span class="funnel-arrow-text">
-                  转化 {{ (funnelSteps[index + 1].rate / step.rate * 100).toFixed(1) }}%
-                </span>
+          <template v-for="(step, index) in funnelSteps" :key="step.name">
+            <div
+              class="funnel-row"
+              :style="{ transitionDelay: index * 0.08 + 's' }"
+            >
+              <div class="funnel-row-head">
+                <span class="funnel-name">{{ step.name }}</span>
+                <span class="funnel-count">{{ step.count.toLocaleString() }}</span>
+                <span class="funnel-rate">{{ funnelPercent(step.rate) }}</span>
               </div>
-            </template>
-          </div>
+              <div class="funnel-track">
+                <div
+                  class="funnel-fill"
+                  :style="{
+                    width: funnelWidth(step.rate),
+                    background: funnelColors[index],
+                  }"
+                ></div>
+              </div>
+            </div>
+            <div v-if="index < funnelSteps.length - 1" class="funnel-connector">
+              <span>转化 {{ stepConversionPercent(index) }}</span>
+            </div>
+          </template>
         </div>
       </el-card>
     </div>
@@ -240,6 +238,28 @@ import type {
   ProductRankingItem,
   UserSegmentItem,
 } from '@/types/api'
+
+type DashboardCache = {
+  loaded: boolean
+  updatedAt: string
+  metrics: DashboardMetrics | null
+  salesTrend: Record<string, SalesTrendData>
+  behavior: BehaviorTrendData | null
+  ranking: Record<string, ProductRankingItem[]>
+  segments: UserSegmentItem[] | null
+  funnel: Array<{ name: string; count: number; rate: number }> | null
+}
+
+const dashboardCache: DashboardCache = {
+  loaded: false,
+  updatedAt: '',
+  metrics: null,
+  salesTrend: {},
+  behavior: null,
+  ranking: {},
+  segments: null,
+  funnel: null,
+}
 
 // ==================== 依赖注入 ====================
 
@@ -323,12 +343,27 @@ const funnelSteps = ref([
   { name: '完成购买', count: 0, rate: 0 },
 ])
 
+const clampRate = (rate: number) => Math.max(0, Math.min(Number(rate) || 0, 1))
+const funnelWidth = (rate: number) => `${Math.max(8, clampRate(rate) * 100)}%`
+const funnelPercent = (rate: number) => `${(clampRate(rate) * 100).toFixed(1)}%`
+const stepConversionPercent = (index: number) => {
+  const current = funnelSteps.value[index]?.count || 0
+  const next = funnelSteps.value[index + 1]?.count || 0
+  if (!current) return '0.0%'
+  return `${Math.min((next / current) * 100, 100).toFixed(1)}%`
+}
+
 /** 加载漏斗数据 */
-const loadFunnelData = async () => {
+const loadFunnelData = async (force: boolean | string = false) => {
+  if (force !== true && dashboardCache.funnel) {
+    funnelSteps.value = dashboardCache.funnel
+    return
+  }
   try {
     const res = await getBehaviorFunnel()
     if (res.data?.steps) {
       funnelSteps.value = res.data.steps
+      dashboardCache.funnel = res.data.steps
     }
   } catch {
     // 保持默认值
@@ -479,9 +514,21 @@ const renderSalesChart = (): void => {
   }
 
   const data = salesTrendData.value
+  const formatSalesDate = (val: string) => {
+    if (salesPeriod.value === 'month') return val
+    if (salesPeriod.value === 'week') return val
+    return val.includes('-') ? val.slice(5) : val
+  }
 
   const option: EChartsOption = {
     ...getBaseChartOption(),
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '9%',
+      top: '12%',
+      containLabel: true,
+    },
     tooltip: {
       ...(getBaseChartOption().tooltip as object),
       axisPointer: {
@@ -508,9 +555,13 @@ const renderSalesChart = (): void => {
       axisLine: { lineStyle: { color: '#e8ecf1' } },
       axisTick: { show: false },
       axisLabel: {
+        show: true,
+        interval: 0,
         color: '#b2bec3',
         fontSize: 11,
-        formatter: (val: string) => val.slice(5), // 只显示 MM-DD
+        margin: 12,
+        hideOverlap: true,
+        formatter: formatSalesDate,
       },
       splitLine: { show: false },
     },
@@ -614,7 +665,7 @@ const renderSalesChart = (): void => {
     ],
   }
 
-  salesChart.setOption(option)
+  salesChart.setOption(option, true)
 }
 
 /**
@@ -761,16 +812,15 @@ const renderSegmentChart = (): void => {
         radius: ['55%', '78%'],  // 环形图
         center: ['50%', '50%'],
         avoidLabelOverlap: false,
-        padAngle: 2,
         itemStyle: {
-          borderRadius: 6,
-          borderColor: '#fff',
-          borderWidth: 3,
+          borderRadius: 0,
+          borderWidth: 0,
         },
         label: {
           show: false,
         },
         emphasis: {
+          scale: false,
           label: {
             show: true,
             fontSize: 16,
@@ -814,7 +864,7 @@ const renderSegmentChart = (): void => {
     ],
   }
 
-  segmentChart.setOption(option)
+  segmentChart.setOption(option, true)
 }
 
 /**
@@ -928,20 +978,32 @@ const renderRankingChart = (): void => {
 // ==================== 数据加载函数 ====================
 
 /** 加载核心指标 */
-const loadMetrics = async (): Promise<void> => {
+const loadMetrics = async (force: boolean | string = false): Promise<void> => {
+  if (force !== true && dashboardCache.metrics) {
+    metrics.value = dashboardCache.metrics
+    return
+  }
   try {
     const res = await getMetrics()
     metrics.value = res.data
+    dashboardCache.metrics = res.data
   } catch {
     // 错误已由 request 拦截器处理
   }
 }
 
 /** 加载销售趋势 */
-const loadSalesTrend = async (): Promise<void> => {
+const loadSalesTrend = async (force: boolean | string = false): Promise<void> => {
+  if (force !== true && dashboardCache.salesTrend[salesPeriod.value]) {
+    salesTrendData.value = dashboardCache.salesTrend[salesPeriod.value]
+    await nextTick()
+    renderSalesChart()
+    return
+  }
   try {
     const res = await getSalesTrend(salesPeriod.value)
     salesTrendData.value = res.data
+    dashboardCache.salesTrend[salesPeriod.value] = res.data
     await nextTick()
     renderSalesChart()
   } catch {
@@ -950,10 +1012,17 @@ const loadSalesTrend = async (): Promise<void> => {
 }
 
 /** 加载用户行为趋势 */
-const loadUserBehavior = async (): Promise<void> => {
+const loadUserBehavior = async (force: boolean | string = false): Promise<void> => {
+  if (force !== true && dashboardCache.behavior) {
+    behaviorData.value = dashboardCache.behavior
+    await nextTick()
+    renderBehaviorChart()
+    return
+  }
   try {
     const res = await getUserBehavior()
     behaviorData.value = res.data
+    dashboardCache.behavior = res.data
     await nextTick()
     renderBehaviorChart()
   } catch {
@@ -962,10 +1031,17 @@ const loadUserBehavior = async (): Promise<void> => {
 }
 
 /** 加载商品排行 */
-const loadProductRanking = async (): Promise<void> => {
+const loadProductRanking = async (force: boolean | string = false): Promise<void> => {
+  if (force !== true && dashboardCache.ranking[rankSortBy.value]) {
+    productRanking.value = dashboardCache.ranking[rankSortBy.value]
+    await nextTick()
+    renderRankingChart()
+    return
+  }
   try {
     const res = await getProductRanking(10, rankSortBy.value)
     productRanking.value = res.data.products
+    dashboardCache.ranking[rankSortBy.value] = res.data.products
     await nextTick()
     renderRankingChart()
   } catch {
@@ -974,10 +1050,17 @@ const loadProductRanking = async (): Promise<void> => {
 }
 
 /** 加载用户分群 */
-const loadUserSegments = async (): Promise<void> => {
+const loadUserSegments = async (force: boolean | string = false): Promise<void> => {
+  if (force !== true && dashboardCache.segments) {
+    segmentData.value = dashboardCache.segments
+    await nextTick()
+    renderSegmentChart()
+    return
+  }
   try {
     const res = await getUserSegments()
     segmentData.value = res.data.segments
+    dashboardCache.segments = res.data.segments
     await nextTick()
     renderSegmentChart()
   } catch {
@@ -986,18 +1069,39 @@ const loadUserSegments = async (): Promise<void> => {
 }
 
 /** 一次性加载所有数据 */
-const loadAllData = async (): Promise<void> => {
-  // 并行加载所有数据接口
+const applyDashboardCache = async (): Promise<void> => {
+  if (dashboardCache.metrics) metrics.value = dashboardCache.metrics
+  if (dashboardCache.salesTrend[salesPeriod.value]) salesTrendData.value = dashboardCache.salesTrend[salesPeriod.value]
+  if (dashboardCache.behavior) behaviorData.value = dashboardCache.behavior
+  if (dashboardCache.ranking[rankSortBy.value]) productRanking.value = dashboardCache.ranking[rankSortBy.value]
+  if (dashboardCache.segments) segmentData.value = dashboardCache.segments
+  if (dashboardCache.funnel) funnelSteps.value = dashboardCache.funnel
+  if (dashboardCache.updatedAt) lastUpdateTime.value = dashboardCache.updatedAt
+
+  await nextTick()
+  renderSalesChart()
+  renderBehaviorChart()
+  renderRankingChart()
+  renderSegmentChart()
+}
+
+const loadAllData = async (force = false): Promise<void> => {
+  if (!force && dashboardCache.loaded) {
+    await applyDashboardCache()
+    return
+  }
+
   let errorCount = 0
   const tasks = [
-    loadMetrics(), loadSalesTrend(), loadUserBehavior(),
-    loadProductRanking(), loadUserSegments(), loadFunnelData(),
+    loadMetrics(force), loadSalesTrend(force), loadUserBehavior(force),
+    loadProductRanking(force), loadUserSegments(force), loadFunnelData(force),
   ]
   const results = await Promise.allSettled(tasks)
   results.forEach(r => { if (r.status === 'rejected') errorCount++ })
 
-  // 更新刷新时间
   updateRefreshTime()
+  dashboardCache.loaded = true
+  dashboardCache.updatedAt = lastUpdateTime.value
   return errorCount > 0 ? Promise.reject(errorCount) : Promise.resolve()
 }
 
@@ -1005,7 +1109,7 @@ const loadAllData = async (): Promise<void> => {
 const handleRefresh = async (): Promise<void> => {
   refreshing.value = true
   try {
-    await loadAllData()
+    await loadAllData(true)
     ElMessage.success('数据已刷新')
   } catch (errorCount: any) {
     ElMessage.warning(`数据已刷新，但 ${errorCount} 个接口加载失败`)
@@ -1363,30 +1467,14 @@ onBeforeUnmount(() => {
 
 /* ==================== 转化漏斗 ==================== */
 .funnel-wrapper {
-  padding: 20px 24px;
+  padding: 18px 22px 20px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0;
+  gap: 10px;
 }
 
-.funnel-item {
-  height: 52px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  position: relative;
-  min-width: 100px;
-  margin-bottom: 0;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+.funnel-row {
   animation: funnel-appear 0.6s ease-out backwards;
-
-  &:hover {
-    transform: scale(1.03);
-    filter: brightness(1.05);
-  }
 }
 
 @keyframes funnel-appear {
@@ -1394,61 +1482,62 @@ onBeforeUnmount(() => {
   to { opacity: 1; transform: translateX(0); }
 }
 
-.funnel-bar {
+.funnel-row-head {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .funnel-name {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: #2d3436;
   white-space: nowrap;
 }
 
 .funnel-count {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
 }
 
 .funnel-rate {
-  font-size: 13px;
+  min-width: 52px;
+  text-align: right;
+  font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: #64748b;
 }
 
-.funnel-arrows {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.funnel-track {
   width: 100%;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f7;
 }
 
-.funnel-arrow {
-  height: 28px;
+.funnel-fill {
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.funnel-connector {
   display: flex;
-  align-items: center;
   justify-content: center;
-  position: relative;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 16px;
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(180deg);
-    width: 0;
-    height: 0;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-    border-top: 8px solid rgba(108, 92, 231, 0.2);
+  span {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #f8fafc;
   }
-}
-
-.funnel-arrow-text {
-  font-size: 11px;
-  color: #b2bec3;
 }
 
 /* ==================== 响应式适配 ==================== */

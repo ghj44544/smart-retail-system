@@ -35,6 +35,7 @@ export interface PaginatedData<T> {
   total: number // 数据总数
   page: number // 当前页码
   page_size: number // 每页数量
+  stats?: Record<string, number>
 }
 
 // ==================== 认证相关 ====================
@@ -140,8 +141,8 @@ export interface ProductItem {
   id: number
   product_no: string
   name: string
-  category_id: number
-  category_name: string
+  category_id: number | null
+  category_name: string | null
   price: number
   stock: number
   status: string

@@ -258,31 +258,38 @@ const pagination = reactive({
   total: 0,
 })
 
+const userStats = reactive({
+  total: 0,
+  admins: 0,
+  total_consumption: 0,
+  order_count: 0,
+})
+
 // ==================== 统计概览卡片 ====================
 
 /** 用户统计概览 */
 const statCards = computed(() => [
   {
     label: '用户总数',
-    value: pagination.total.toLocaleString(),
+    value: userStats.total.toLocaleString(),
     icon: UserFilled,
     bg: 'linear-gradient(135deg, rgba(108,92,231,0.12), rgba(162,155,254,0.06))',
   },
   {
     label: '管理员',
-    value: userList.value.filter((u) => u.role === 'admin').length + ' 人',
+    value: userStats.admins + ' 人',
     icon: User,
     bg: 'linear-gradient(135deg, rgba(0,184,148,0.12), rgba(85,239,196,0.06))',
   },
   {
     label: '消费总额',
-    value: '¥' + userList.value.reduce((s, u) => s + u.total_consumption, 0).toFixed(2),
+    value: '¥' + userStats.total_consumption.toFixed(2),
     icon: Coin,
     bg: 'linear-gradient(135deg, rgba(116,185,255,0.12), rgba(116,185,255,0.06))',
   },
   {
     label: '总订单数',
-    value: userList.value.reduce((s, u) => s + u.order_count, 0).toLocaleString(),
+    value: userStats.order_count.toLocaleString(),
     icon: List,
     bg: 'linear-gradient(135deg, rgba(253,203,110,0.12), rgba(253,203,110,0.06))',
   },
@@ -349,6 +356,10 @@ const loadList = async (): Promise<void> => {
     const res = await getUserList(buildQueryParams())
     userList.value = res.data.items
     pagination.total = res.data.total
+    userStats.total = res.data.stats?.total ?? res.data.total
+    userStats.admins = res.data.stats?.admins ?? 0
+    userStats.total_consumption = res.data.stats?.total_consumption ?? 0
+    userStats.order_count = res.data.stats?.order_count ?? 0
   } catch {
     // 错误由 request 拦截器处理
   } finally {

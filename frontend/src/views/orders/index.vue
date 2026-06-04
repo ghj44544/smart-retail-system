@@ -51,7 +51,25 @@
           format="YYYY-MM-DD" value-format="YYYY-MM-DD"
           style="width:260px" @change="handleSearch"
         />
-        <el-input-number v-model="filterUserId" :min="0" placeholder="用户ID" controls-position="right" style="width:140px" @change="handleSearch" />
+        <el-select
+          v-model="filterUserId"
+          filterable
+          remote
+          clearable
+          reserve-keyword
+          placeholder="搜索用户"
+          style="width:180px"
+          :remote-method="loadUserOptions"
+          @change="handleSearch"
+          @focus="loadUserOptions('')"
+        >
+          <el-option
+            v-for="u in userOptions"
+            :key="u.id"
+            :label="`${u.nickname || u.username} (${u.id})`"
+            :value="u.id"
+          />
+        </el-select>
         <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
         <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
       </div>
@@ -59,14 +77,14 @@
 
     <!-- ========== 订单表格 ========== -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="loading" :data="orderList" stripe border row-key="id">
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="order_no" label="订单编号" width="180" />
-        <el-table-column prop="user_name" label="用户" width="90" />
+      <el-table v-loading="loading" :data="orderList" stripe border row-key="id" :scrollbar-always-on="true">
+        <el-table-column prop="id" label="ID" width="86" align="center" />
+        <el-table-column prop="order_no" label="订单编号" width="170" />
+        <el-table-column prop="user_name" label="用户" width="120" />
         <el-table-column label="金额" width="120" align="right">
           <template #default="{ row }"><span class="amount">¥{{ row.total_amount.toFixed(2) }}</span></template>
         </el-table-column>
-        <el-table-column prop="item_count" label="商品数" width="80" align="center" />
+        <el-table-column prop="item_count" label="商品数" width="90" align="center" />
         <el-table-column label="状态" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" effect="light" size="small">
@@ -74,32 +92,42 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态流转" min-width="210">
+        <el-table-column label="状态流转" width="460">
           <template #default="{ row }">
-            <el-steps :active="statusStep(row.status)" align-center finish-status="success" process-status="finish">
-              <el-step v-for="(l, k) in statusLabels" :key="k" :title="l" />
-            </el-steps>
+            <div class="status-flow" :class="{ cancelled: row.status === 'cancelled' }">
+              <div
+                v-for="(step, index) in orderStatusSteps"
+                :key="step.key"
+                class="flow-step"
+                :class="flowStepClass(row.status, index)"
+              >
+                <span class="flow-dot">{{ row.status === 'cancelled' ? '×' : index + 1 }}</span>
+                <span class="flow-title">{{ row.status === 'cancelled' ? '已取消' : step.label }}</span>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="时间" width="160">
+        <el-table-column label="时间" width="170">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" align="center" fixed="right">
+        <el-table-column label="操作" width="160" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="handleViewDetail(row.id)">详情</el-button>
-            <el-dropdown trigger="click" @command="(cmd: string) => handleStatusChange(row, cmd)">
-              <el-button link type="warning" size="small">
-                流转 <el-icon><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="(l, k) in statusLabels" :key="k"
-                    :command="k" :disabled="k === row.status"
-                  >{{ l }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <div class="action-cell">
+              <el-button link type="primary" size="small" @click="handleViewDetail(row.id)">详情</el-button>
+              <el-dropdown trigger="click" @command="(cmd: string) => handleStatusChange(row, cmd)">
+                <el-button link type="warning" size="small">
+                  流转 <el-icon><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="(l, k) in statusLabels" :key="k"
+                      :command="k" :disabled="k === row.status"
+                    >{{ l }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -118,7 +146,23 @@
     <el-dialog v-model="dialogVisible" title="创建订单" width="480px" :close-on-click-modal="false" destroy-on-close>
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
         <el-form-item label="用户ID" prop="user_id">
-          <el-input-number v-model="formData.user_id" :min="1" style="width:100%" />
+          <el-select
+            v-model="formData.user_id"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="搜索用户"
+            style="width:100%"
+            :remote-method="loadUserOptions"
+            @focus="loadUserOptions('')"
+          >
+            <el-option
+              v-for="u in userOptions"
+              :key="u.id"
+              :label="`${u.nickname || u.username} (${u.id})`"
+              :value="u.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="商品">
           <div v-for="(item, idx) in formData.items" :key="idx" class="order-item-row">
@@ -148,9 +192,24 @@ import type { EChartsOption } from 'echarts'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search, RefreshRight, Delete, ArrowDown, List, Coin, Goods, ShoppingCart } from '@element-plus/icons-vue'
 import { getOrderList, updateOrderStatus, createOrder, getOrderTrend } from '@/api/order'
-import type { OrderItem, OrderQueryParams } from '@/types/api'
+import { getUserList } from '@/api/user'
+import type { OrderItem, OrderQueryParams, UserItem } from '@/types/api'
 
 const router = useRouter()
+
+type OrderPageCache = {
+  orderList: OrderItem[]
+  filterStatus: string
+  dateRange: [string, string] | null
+  filterUserId: number | null
+  userOptions: UserItem[]
+  pagination: { page: number; pageSize: number; total: number }
+  orderStats: { total: number; sales_amount: number; completed: number; pending: number; cancelled: number }
+  trendDays: number
+  trendOption: EChartsOption | null
+}
+
+let orderPageCache: OrderPageCache | null = null
 
 const statusLabels: Record<string, string> = {
   pending: '待支付', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消',
@@ -159,6 +218,22 @@ const statusLabels: Record<string, string> = {
 const statusTagType = (s: string): string => {
   const m: Record<string, string> = { pending: 'warning', paid: 'primary', shipped: '', completed: 'success', cancelled: 'danger' }
   return m[s] || 'info'
+}
+
+const orderStatusSteps = [
+  { key: 'pending', label: '待支付' },
+  { key: 'paid', label: '已支付' },
+  { key: 'shipped', label: '已发货' },
+  { key: 'completed', label: '已完成' },
+  { key: 'cancelled', label: '已取消' },
+]
+
+const flowStepClass = (status: string, index: number): string => {
+  if (status === 'cancelled') return 'is-cancelled'
+  const currentIndex = orderStatusSteps.findIndex((s) => s.key === status)
+  if (index < currentIndex) return 'is-done'
+  if (index === currentIndex) return 'is-current'
+  return 'is-wait'
 }
 
 const statusStep = (s: string): number => {
@@ -174,21 +249,20 @@ const orderList = ref<OrderItem[]>([])
 const filterStatus = ref('')
 const dateRange = ref<[string, string] | null>(null)
 const filterUserId = ref<number | null>(null)
+const userOptions = ref<UserItem[]>([])
+const orderStats = reactive({ total: 0, sales_amount: 0, completed: 0, pending: 0, cancelled: 0 })
 
 const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 const trendDays = ref(30)
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: echarts.ECharts | null = null
 
-const statCards = computed(() => {
-  const total = orderList.value.reduce((s, o) => s + o.total_amount, 0)
-  return [
-    { label: '订单总数', value: pagination.total + ' 笔', icon: List, color: '#6c5ce7', bg: 'rgba(108,92,231,0.08)' },
-    { label: '成交金额', value: '¥' + total.toFixed(2), icon: Coin, color: '#00b894', bg: 'rgba(0,184,148,0.08)' },
-    { label: '已完成', value: orderList.value.filter((o) => o.status === 'completed').length + ' 笔', icon: ShoppingCart, color: '#74b9ff', bg: 'rgba(116,185,255,0.08)' },
-    { label: '待处理', value: orderList.value.filter((o) => o.status === 'pending').length + ' 笔', icon: Goods, color: '#fdcb6e', bg: 'rgba(253,203,110,0.08)' },
-  ]
-})
+const statCards = computed(() => [
+  { label: '订单总数', value: orderStats.total + ' 笔', icon: List, color: '#6c5ce7', bg: 'rgba(108,92,231,0.08)' },
+  { label: '成交金额', value: '¥' + orderStats.sales_amount.toFixed(2), icon: Coin, color: '#00b894', bg: 'rgba(0,184,148,0.08)' },
+  { label: '已完成', value: orderStats.completed + ' 笔', icon: ShoppingCart, color: '#74b9ff', bg: 'rgba(116,185,255,0.08)' },
+  { label: '待处理', value: orderStats.pending + ' 笔', icon: Goods, color: '#fdcb6e', bg: 'rgba(253,203,110,0.08)' },
+])
 
 const formatDate = (s: string) => s ? new Date(s).toLocaleString('zh-CN') : '--'
 
@@ -211,9 +285,29 @@ const buildQuery = (): OrderQueryParams => ({
   end_date: dateRange.value?.[1],
 })
 
+const applyStats = (stats?: Record<string, number>) => {
+  orderStats.total = stats?.total ?? pagination.total
+  orderStats.sales_amount = stats?.sales_amount ?? 0
+  orderStats.completed = stats?.completed ?? 0
+  orderStats.pending = stats?.pending ?? 0
+  orderStats.cancelled = stats?.cancelled ?? 0
+}
+
+const loadUserOptions = async (keyword = '') => {
+  try {
+    const res = await getUserList({ page: 1, page_size: 20, keyword: keyword || undefined })
+    userOptions.value = res.data.items
+  } catch { /* handled by request interceptor */ }
+}
+
 const loadList = async () => {
   loading.value = true
-  try { const res = await getOrderList(buildQuery()); orderList.value = res.data.items; pagination.total = res.data.total } catch { ElMessage.error('订单数据加载失败') } finally { loading.value = false }
+  try {
+    const res = await getOrderList(buildQuery())
+    orderList.value = res.data.items
+    pagination.total = res.data.total
+    applyStats(res.data.stats)
+  } catch { ElMessage.error('订单数据加载失败') } finally { loading.value = false }
 }
 
 const loadTrend = async () => {
@@ -237,6 +331,7 @@ const loadTrend = async () => {
       ],
     }
     trendChart.setOption(opt)
+    if (orderPageCache) orderPageCache.trendOption = opt
   } catch {/* */}
 }
 
@@ -256,7 +351,12 @@ const handleStatusChange = async (row: OrderItem, status: string) => {
 }
 
 // 创建订单
-const handleAdd = () => { formData.user_id = 1; formData.items = [{ product_id: 1, quantity: 1 }]; dialogVisible.value = true }
+const handleAdd = () => {
+  if (!userOptions.value.length) loadUserOptions('')
+  formData.user_id = userOptions.value[0]?.id || 1
+  formData.items = [{ product_id: 1, quantity: 1 }]
+  dialogVisible.value = true
+}
 const handleSubmit = async () => {
   if (!formRef.value) return
   try { await formRef.value.validate() } catch { return }
@@ -272,8 +372,52 @@ const handleViewDetail = (id: number) => router.push(`/orders/${id}`)
 
 // 生命周期
 const handleResize = () => trendChart?.resize()
-onMounted(() => { loadList(); loadTrend(); window.addEventListener('resize', handleResize) })
-onBeforeUnmount(() => { trendChart?.dispose(); window.removeEventListener('resize', handleResize) })
+
+const savePageCache = () => {
+  orderPageCache = {
+    orderList: orderList.value,
+    filterStatus: filterStatus.value,
+    dateRange: dateRange.value ? [...dateRange.value] as [string, string] : null,
+    filterUserId: filterUserId.value,
+    userOptions: userOptions.value,
+    pagination: { ...pagination },
+    orderStats: { ...orderStats },
+    trendDays: trendDays.value,
+    trendOption: trendChart?.getOption() as EChartsOption || orderPageCache?.trendOption || null,
+  }
+}
+
+const restorePageCache = () => {
+  if (!orderPageCache) return false
+  orderList.value = orderPageCache.orderList
+  filterStatus.value = orderPageCache.filterStatus
+  dateRange.value = orderPageCache.dateRange
+  filterUserId.value = orderPageCache.filterUserId
+  userOptions.value = orderPageCache.userOptions
+  pagination.page = orderPageCache.pagination.page
+  pagination.pageSize = orderPageCache.pagination.pageSize
+  pagination.total = orderPageCache.pagination.total
+  Object.assign(orderStats, orderPageCache.orderStats)
+  trendDays.value = orderPageCache.trendDays
+  nextTick(() => {
+    if (trendChartRef.value && orderPageCache?.trendOption) {
+      trendChart = echarts.init(trendChartRef.value)
+      trendChart.setOption(orderPageCache.trendOption)
+    }
+  })
+  return true
+}
+
+onMounted(() => {
+  const restored = restorePageCache()
+  if (!restored) {
+    loadList()
+    loadTrend()
+    loadUserOptions('')
+  }
+  window.addEventListener('resize', handleResize)
+})
+onBeforeUnmount(() => { savePageCache(); trendChart?.dispose(); window.removeEventListener('resize', handleResize) })
 </script>
 
 <style lang="scss" scoped>
@@ -310,9 +454,107 @@ onBeforeUnmount(() => { trendChart?.dispose(); window.removeEventListener('resiz
   --el-table-border-color: #f0f3f7;
   th.el-table__cell { background: rgba(108,92,231,0.03); color: #636e72; font-weight: 600; font-size: 13px; height: 44px; }
   td.el-table__cell { font-size: 13px; }
+  .cell { overflow: hidden; }
 }
 .amount { color: #6c5ce7; font-weight: 600; }
 .pagination-wrap { display: flex; justify-content: flex-end; padding: 16px 20px; }
+
+.status-flow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: start;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+}
+
+.flow-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #9ca3af;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: calc(-50% + 12px);
+    width: calc(100% - 24px);
+    height: 2px;
+    background: #d1d5db;
+  }
+
+  &:first-child::before {
+    display: none;
+  }
+}
+
+.flow-dot {
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flow-title {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.action-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.action-cell :deep(.el-button) {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.flow-step.is-done {
+  color: #52c41a;
+
+  &::before {
+    background: #52c41a;
+  }
+}
+
+.flow-step.is-current {
+  color: #409eff;
+
+  &::before {
+    background: #52c41a;
+  }
+}
+
+.flow-step.is-cancelled {
+  color: #f56c6c;
+
+  &::before {
+    background: #f56c6c;
+  }
+}
+
+.status-flow.cancelled .flow-title {
+  visibility: hidden;
+}
+
+.status-flow.cancelled .flow-step:first-child .flow-title {
+  visibility: visible;
+}
 
 .order-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 
