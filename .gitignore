@@ -21,6 +21,10 @@ test_*.csv
 # 大数据压缩包（超过100MB）
 *.zip
 
+# 数据库和缓存文件
+dump.rdb
+*.sql
+
 # 前端自动生成文件
 components.d.ts
 auto-imports.d.ts
