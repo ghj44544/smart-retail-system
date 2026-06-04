@@ -25,6 +25,9 @@ test_*.csv
 dump.rdb
 *.sql
 
+# 工作助手配置
+.workbuddy/
+
 # 前端自动生成文件
 components.d.ts
 auto-imports.d.ts
