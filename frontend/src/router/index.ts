@@ -123,6 +123,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/recommend/index.vue'),
         meta: { requiresAuth: true, title: '推荐系统' },
       },
+      {
+        path: 'ai-assistant',
+        name: 'AIAssistant',
+        component: () => import('@/views/ai/index.vue'),
+        meta: { requiresAuth: true, title: 'AI 智能助手' },
+      },
       // ========== 个人中心 ==========
       {
         path: 'profile',

@@ -85,6 +85,11 @@
           <template #title>推荐系统</template>
         </el-menu-item>
 
+        <el-menu-item index="/ai-assistant">
+          <el-icon><ChatDotRound /></el-icon>
+          <template #title>AI 智能助手</template>
+        </el-menu-item>
+
         <!-- 个人中心 -->
         <el-menu-item index="/profile">
           <el-icon><User /></el-icon>
@@ -150,7 +155,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import {
   DataAnalysis, ArrowLeft, ArrowDown, User, SwitchButton,
-  Goods, List, Monitor, Present, Connection,
+  Goods, List, Monitor, Present, Connection, ChatDotRound,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 

@@ -339,3 +339,57 @@ export interface UserSegmentItem {
   name: string
   value: number
 }
+
+// ==================== AI 智能助手相关 ====================
+
+export interface AIInsight {
+  type: string
+  title: string
+  content: string
+  priority: 'high' | 'medium' | 'low' | string
+}
+
+export interface AIProductRankItem {
+  id: number
+  name: string
+  stock: number
+  sales_count: number
+  sold_qty: number
+  revenue: number
+}
+
+export interface AISummary {
+  metrics: {
+    total_users: number
+    total_products: number
+    active_products: number
+    total_orders: number
+    total_sales: number
+    avg_order_value: number
+    recent_30d_orders: number
+    recent_30d_sales: number
+    view_count: number
+    cart_count: number
+    buy_count: number
+    cart_rate: number
+    buy_rate: number
+  }
+  segments: Record<string, number>
+  top_products: AIProductRankItem[]
+  insights: AIInsight[]
+}
+
+export interface AIKnowledgeItem {
+  id: string
+  title: string
+  keywords: string[]
+  summary: string
+  suggestions: string[]
+}
+
+export interface AIChatResult {
+  answer: string
+  suggestions: string[]
+  sources: string[]
+  related_knowledge: AIKnowledgeItem[]
+}

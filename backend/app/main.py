@@ -131,6 +131,7 @@ from app.api.behaviors import router as behaviors_router  # 行为数据模块�
 from app.api.analysis import router as analysis_router    # 数据分析模块路由
 from app.api.recommend import router as recommend_router  # 推荐系统模块路由
 from app.api.dashboard import router as dashboard_router  # 数据驾驶舱模块路由
+from app.api.ai import router as ai_router                # AI 智能助手模块路由
 
 # 注册认证模块路由
 app.include_router(auth_router, prefix="/api/v1")
@@ -155,6 +156,9 @@ app.include_router(recommend_router, prefix="/api/v1")
 
 # 注册数据驾驶舱模块路由
 app.include_router(dashboard_router, prefix="/api/v1")
+
+# 注册 AI 智能助手模块路由
+app.include_router(ai_router, prefix="/api/v1")
 
 # ======================== 分类独立路由（4.6 GET /categories） ========================
 # 分类路由独立于 /products 前缀，直接挂载在 /api/v1/categories
